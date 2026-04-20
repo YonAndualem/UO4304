@@ -1,0 +1,36 @@
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+*.env.local
+
+# ── Go ────────────────────────────────────────────────────────────────────────
+/trade-license
+*.exe
+*.test
+*.out
+vendor/
+
+# ── Next.js / Node ────────────────────────────────────────────────────────────
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/tsconfig.tsbuildinfo
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Keep Dockerfiles and compose; ignore runtime volumes if any
+postgres-data/
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude/

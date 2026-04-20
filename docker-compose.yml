@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trade_license
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # SQL migration is kept as reference only — GORM AutoMigrate owns the schema at runtime
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # on-failure:5 stops the restart loop after 5 attempts so a broken config is visible immediately
+    restart: on-failure:5
+    env_file: .env.example
+    environment:
+      DB_HOST: postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        API_ORIGIN: http://app:8080
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+
+  # seed is excluded from the default `docker compose up` via profiles.
+  # Run manually with: docker compose run --rm seed
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    profiles: ["seed"]
+    restart: "no"
+    env_file: .env.example
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
