@@ -21,6 +21,7 @@ export function loadIdentity(): Identity | null {
     if (!isValidUserId(parsed.userId)) return null;
     const validRoles: Role[] = ["CUSTOMER", "REVIEWER", "APPROVER"];
     if (!validRoles.includes(parsed.role)) return null;
+    if (!parsed.token) return null;
     return parsed;
   } catch {
     return null;

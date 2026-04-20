@@ -13,6 +13,7 @@ export type Role = "CUSTOMER" | "REVIEWER" | "APPROVER";
 export interface Identity {
   userId: string;
   role: Role;
+  token: string;
 }
 
 export interface CommodityDTO {

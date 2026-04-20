@@ -19,6 +19,7 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+	JWTSecret  string
 }
 
 // Load reads configuration from environment variables, falling back to safe
@@ -32,6 +33,7 @@ func Load() *Config {
 		DBPassword: getEnv("DB_PASSWORD", "postgres"),
 		DBName:     getEnv("DB_NAME", "trade_license"),
 		DBSSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		JWTSecret:  getEnv("JWT_SECRET", "change-me-in-production"),
 	}
 }
 

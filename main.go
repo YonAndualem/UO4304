@@ -20,6 +20,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/enterprise/trade-license/src/application/auth"
 	"github.com/enterprise/trade-license/src/application/command"
 	"github.com/enterprise/trade-license/src/application/query"
 	"github.com/enterprise/trade-license/src/config"
@@ -44,8 +45,12 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
+	// ── Auth ──────────────────────────────────────────────────────────────────
+	userRepo    := postgresrepo.NewUserRepository(db)
+	authSvc     := auth.NewService(userRepo, cfg.JWTSecret)
+	authHandler := handler.NewAuthHandler(authSvc)
+
 	// The repository adapter satisfies the domain's ApplicationRepository port.
-	// The domain layer only knows about the interface; it never imports this package.
 	repo := postgresrepo.NewApplicationRepository(db)
 
 	// ── Application layer: command handlers (write side) ─────────────────────
@@ -76,7 +81,7 @@ func main() {
 	approverHandler := handler.NewApproverHandler(approveHandler, getHandler, listByStatus)
 
 	// Build the Fiber router with all routes registered.
-	app := httpserver.NewRouter(customerHandler, reviewerHandler, approverHandler)
+	app := httpserver.NewRouter(authHandler, customerHandler, reviewerHandler, approverHandler, authSvc)
 
 	log.Printf("server starting on :%s", cfg.ServerPort)
 	log.Fatal(app.Listen(":" + cfg.ServerPort))

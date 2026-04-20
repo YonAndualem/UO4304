@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { customerApi, reviewerApi, approverApi, ApiResponseError } from "@/lib/api";
-import type { ApplicationDTO } from "@/lib/types";
+import { customerApi, reviewerApi, approverApi, authApi, ApiResponseError } from "@/lib/api";
+import type { ApplicationDTO, Identity, Role } from "@/lib/types";
 
-// ── Fixed test identities ─────────────────────────────────────────────────────
-const CUSTOMER  = { userId: "customer-seed-001", role: "CUSTOMER"  as const };
-const REVIEWER  = { userId: "reviewer-seed-001", role: "REVIEWER"  as const };
-const APPROVER  = { userId: "approver-seed-001", role: "APPROVER"  as const };
+// ── Demo identity context ─────────────────────────────────────────────────────
+interface DemoIds { customer: Identity; reviewer: Identity; approver: Identity }
+const DemoIdentityContext = createContext<DemoIds | null>(null);
+function useDemoIds() {
+  const ctx = useContext(DemoIdentityContext);
+  if (!ctx) throw new Error("useDemoIds outside provider");
+  return ctx;
+}
 
 // ── Scenario definitions ──────────────────────────────────────────────────────
 interface Scenario {
@@ -129,6 +133,7 @@ function StepBar({ steps, current }: { steps: string[]; current: string }) {
 
 // ── Submit step ───────────────────────────────────────────────────────────────
 function SubmitStep({ onDone }: { onDone: (app: ApplicationDTO) => void }) {
+  const { customer } = useDemoIds();
   const [commodity, setCommodity] = useState("General Trading");
   const [category,  setCategory]  = useState("Commerce");
   const [docName,   setDocName]   = useState("Passport Copy");
@@ -146,7 +151,7 @@ function SubmitStep({ onDone }: { onDone: (app: ApplicationDTO) => void }) {
     if (!txnId.trim()) { setError("Transaction ID is required."); return; }
     setLoading(true); setError("");
     try {
-      const app = await customerApi.submit(CUSTOMER, {
+      const app = await customerApi.submit(customer, {
         license_type: "TRADE_LICENSE",
         commodity: { name: commodity, description: "Test flow commodity", category },
         documents: [{ name: docName, url: docUrl, content_type: "application/pdf" }],
@@ -160,7 +165,7 @@ function SubmitStep({ onDone }: { onDone: (app: ApplicationDTO) => void }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{CUSTOMER.userId}</span></p>
+      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{customer.userId}</span></p>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Commodity name</Label><Input value={commodity} onChange={e => setCommodity(e.target.value)} /></div>
         <div><Label>Category</Label><Input value={category} onChange={e => setCategory(e.target.value)} /></div>
@@ -183,6 +188,7 @@ function SubmitStep({ onDone }: { onDone: (app: ApplicationDTO) => void }) {
 
 // ── Reviewer action step ──────────────────────────────────────────────────────
 function ReviewerStep({ app, action, onDone }: { app: ApplicationDTO; action: "ACCEPT" | "REJECT" | "ADJUST"; onDone: (updated: ApplicationDTO) => void }) {
+  const { reviewer } = useDemoIds();
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -192,8 +198,8 @@ function ReviewerStep({ app, action, onDone }: { app: ApplicationDTO; action: "A
     if (needsNotes && !notes.trim()) { setError("Notes are required."); return; }
     setLoading(true); setError("");
     try {
-      await reviewerApi.takeAction(REVIEWER, app.id, { action, notes: notes.trim() });
-      const updated = await reviewerApi.get(REVIEWER, app.id);
+      await reviewerApi.takeAction(reviewer, app.id, { action, notes: notes.trim() });
+      const updated = await reviewerApi.get(reviewer, app.id);
       onDone(updated);
     } catch (e) {
       setError(e instanceof ApiResponseError ? e.body : (e instanceof Error ? e.message : "Error"));
@@ -204,7 +210,7 @@ function ReviewerStep({ app, action, onDone }: { app: ApplicationDTO; action: "A
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-green-700">{REVIEWER.userId}</span></p>
+      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-green-700">{reviewer.userId}</span></p>
       <AppSummary app={app} />
       {needsNotes && (
         <div>
@@ -220,6 +226,7 @@ function ReviewerStep({ app, action, onDone }: { app: ApplicationDTO; action: "A
 
 // ── Customer resubmit step ────────────────────────────────────────────────────
 function CustomerResubmitStep({ app, onDone }: { app: ApplicationDTO; onDone: (updated: ApplicationDTO) => void }) {
+  const { customer } = useDemoIds();
   const [commodity, setCommodity] = useState(app.commodity?.name ?? "");
   const [category,  setCategory]  = useState(app.commodity?.category ?? "");
   const [description, setDescription] = useState(app.commodity?.description ?? "");
@@ -231,11 +238,11 @@ function CustomerResubmitStep({ app, onDone }: { app: ApplicationDTO; onDone: (u
   async function handle() {
     setLoading(true); setError("");
     try {
-      await customerApi.resubmit(CUSTOMER, app.id, {
+      await customerApi.resubmit(customer, app.id, {
         commodity: { name: commodity, description, category },
         documents: [{ name: docName, url: docUrl, content_type: "application/pdf" }],
       });
-      const updated = await customerApi.get(CUSTOMER, app.id);
+      const updated = await customerApi.get(customer, app.id);
       onDone(updated);
     } catch (e) {
       setError(e instanceof ApiResponseError ? e.body : (e instanceof Error ? e.message : "Error"));
@@ -244,7 +251,7 @@ function CustomerResubmitStep({ app, onDone }: { app: ApplicationDTO; onDone: (u
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{CUSTOMER.userId}</span></p>
+      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{customer.userId}</span></p>
       {app.notes && (
         <div className="bg-orange-50 border border-orange-300 rounded px-3 py-2 text-sm text-orange-900">
           <strong>Reviewer notes:</strong> {app.notes}
@@ -265,14 +272,15 @@ function CustomerResubmitStep({ app, onDone }: { app: ApplicationDTO; onDone: (u
 
 // ── Customer cancel step ──────────────────────────────────────────────────────
 function CustomerCancelStep({ app, onDone }: { app: ApplicationDTO; onDone: (updated: ApplicationDTO) => void }) {
+  const { customer } = useDemoIds();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handle() {
     setLoading(true); setError("");
     try {
-      await customerApi.cancel(CUSTOMER, app.id);
-      const updated = await customerApi.get(CUSTOMER, app.id);
+      await customerApi.cancel(customer, app.id);
+      const updated = await customerApi.get(customer, app.id);
       onDone(updated);
     } catch (e) {
       setError(e instanceof ApiResponseError ? e.body : (e instanceof Error ? e.message : "Error"));
@@ -281,7 +289,7 @@ function CustomerCancelStep({ app, onDone }: { app: ApplicationDTO; onDone: (upd
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{CUSTOMER.userId}</span></p>
+      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-blue-700">{customer.userId}</span></p>
       <AppSummary app={app} />
       <p className="text-sm text-gray-600">Cancel this application. It will move to CANCELLED status and can be deleted.</p>
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
@@ -292,6 +300,7 @@ function CustomerCancelStep({ app, onDone }: { app: ApplicationDTO; onDone: (upd
 
 // ── Approver action step ──────────────────────────────────────────────────────
 function ApproverStep({ app, action, onDone }: { app: ApplicationDTO; action: "APPROVE" | "REJECT" | "REREVIEW"; onDone: (updated: ApplicationDTO) => void }) {
+  const { approver } = useDemoIds();
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -301,8 +310,8 @@ function ApproverStep({ app, action, onDone }: { app: ApplicationDTO; action: "A
     if (needsNotes && !notes.trim()) { setError("Notes are required."); return; }
     setLoading(true); setError("");
     try {
-      await approverApi.takeAction(APPROVER, app.id, { action, notes: notes.trim() });
-      const updated = await approverApi.get(APPROVER, app.id);
+      await approverApi.takeAction(approver, app.id, { action, notes: notes.trim() });
+      const updated = await approverApi.get(approver, app.id);
       onDone(updated);
     } catch (e) {
       setError(e instanceof ApiResponseError ? e.body : (e instanceof Error ? e.message : "Error"));
@@ -313,7 +322,7 @@ function ApproverStep({ app, action, onDone }: { app: ApplicationDTO; action: "A
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-purple-700">{APPROVER.userId}</span></p>
+      <p className="text-sm text-gray-500">Acting as <span className="font-mono font-medium text-purple-700">{approver.userId}</span></p>
       <AppSummary app={app} />
       {needsNotes && (
         <div>
@@ -346,9 +355,31 @@ function DoneStep({ app, onRestart }: { app: ApplicationDTO; onRestart: () => vo
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function TestFlowPage() {
+  const [demoIds, setDemoIds] = useState<DemoIds | null>(null);
+  const [authError, setAuthError] = useState("");
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [app, setApp] = useState<ApplicationDTO | null>(null);
+
+  useEffect(() => {
+    async function resolve() {
+      try {
+        const [c, r, a] = await Promise.all([
+          authApi.login("customer-seed-001", "demo"),
+          authApi.login("reviewer-seed-001", "demo"),
+          authApi.login("approver-seed-001", "demo"),
+        ]);
+        setDemoIds({
+          customer: { userId: c.user_id, role: c.role as Role, token: c.token },
+          reviewer: { userId: r.user_id, role: r.role as Role, token: r.token },
+          approver: { userId: a.user_id, role: a.role as Role, token: a.token },
+        });
+      } catch {
+        setAuthError("Could not authenticate demo accounts. Run: docker compose run --rm seed");
+      }
+    }
+    resolve();
+  }, []);
 
   const currentStepKey = selectedScenario ? selectedScenario.steps[stepIndex] : null;
   const stepInfo = currentStepKey ? STEP_INFO[currentStepKey] : null;
@@ -364,8 +395,17 @@ export default function TestFlowPage() {
     setApp(null);
   }
 
+  if (authError) {
+    return <div className="max-w-2xl mx-auto py-10 px-4 text-red-600 text-sm">{authError}</div>;
+  }
+
+  if (!demoIds) {
+    return <div className="max-w-2xl mx-auto py-10 px-4 text-gray-400 text-sm">Authenticating demo accounts…</div>;
+  }
+
   if (!selectedScenario) {
     return (
+      <DemoIdentityContext.Provider value={demoIds}>
       <div className="max-w-2xl mx-auto py-10 px-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Guided Demo</h1>
         <p className="text-sm text-gray-500 mb-8">Choose a scenario to walk through the full workflow without switching users manually.</p>
@@ -395,10 +435,12 @@ export default function TestFlowPage() {
 
         <SeedTable />
       </div>
+      </DemoIdentityContext.Provider>
     );
   }
 
   return (
+    <DemoIdentityContext.Provider value={demoIds}>
     <div className="max-w-2xl mx-auto py-10 px-4">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={restart} className="text-sm text-gray-400 hover:text-gray-600">← Scenarios</button>
@@ -434,6 +476,7 @@ export default function TestFlowPage() {
         </Card>
       )}
     </div>
+    </DemoIdentityContext.Provider>
   );
 }
 

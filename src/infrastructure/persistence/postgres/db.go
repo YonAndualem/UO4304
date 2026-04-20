@@ -36,6 +36,7 @@ func NewDB(dsn string) (*gorm.DB, error) {
 		&models.Document{},
 		&models.Payment{},
 		&models.ApplicationHistory{},
+		&models.User{},
 	); err != nil {
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}

@@ -2,19 +2,39 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/enterprise/trade-license/src/application/auth"
 )
 
-// RequireRole is a Fiber middleware that enforces role-based access control
-// by inspecting the X-Role request header.
-//
-// In a production system this header would be derived from a validated JWT token
-// rather than trusted from the client directly. The middleware is intentionally
-// kept thin here so it can be swapped for a JWT-based implementation without
-// changing any handler code.
+// JWTAuth validates the Bearer token from the Authorization header and stores
+// the parsed user ID and role in fiber locals for downstream handlers to read.
+func JWTAuth(svc *auth.Service) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		header := c.Get("Authorization")
+		if !strings.HasPrefix(header, "Bearer ") {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "missing or invalid Authorization header",
+			})
+		}
+		claims, err := svc.ValidateToken(strings.TrimPrefix(header, "Bearer "))
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid or expired token",
+			})
+		}
+		c.Locals("userID", claims.UserID)
+		c.Locals("role", claims.Role)
+		return c.Next()
+	}
+}
+
+// RequireRole enforces that the JWT-authenticated user has the expected role.
 func RequireRole(role string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if c.Get("X-Role") != role {
+		if c.Locals("role") != role {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "forbidden: role '" + role + "' required",
 			})
@@ -23,9 +43,10 @@ func RequireRole(role string) fiber.Handler {
 	}
 }
 
-// UserID extracts the caller's identity from the X-User-ID header.
-// This is a placeholder for real authentication — in production the user ID
-// would be extracted from a verified JWT claim.
+// UserID returns the authenticated user's ID from fiber locals.
 func UserID(c *fiber.Ctx) string {
-	return c.Get("X-User-ID")
+	if uid, ok := c.Locals("userID").(string); ok {
+		return uid
+	}
+	return ""
 }

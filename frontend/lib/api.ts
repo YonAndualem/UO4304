@@ -22,8 +22,7 @@ async function request<T>(
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-User-ID": identity.userId,
-      "X-Role": identity.role,
+      "Authorization": `Bearer ${identity.token}`,
       ...options.headers,
     },
   });
@@ -35,6 +34,34 @@ async function request<T>(
 
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
+
+// ── Auth (public — no identity required) ─────────────────────────────────────
+
+export interface AuthResponse {
+  token: string;
+  user_id: string;
+  role: string;
+}
+
+async function authRequest<T>(path: string, body: object): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new ApiResponseError(res.status, text);
+  return JSON.parse(text) as T;
+}
+
+export const authApi = {
+  register(userId: string, password: string, role: string): Promise<{ user_id: string; role: string }> {
+    return authRequest("/api/auth/register", { user_id: userId, password, role });
+  },
+  login(userId: string, password: string): Promise<AuthResponse> {
+    return authRequest("/api/auth/login", { user_id: userId, password });
+  },
+};
 
 // ── Customer ──────────────────────────────────────────────────────────────────
 

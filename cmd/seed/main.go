@@ -12,12 +12,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 
+	"github.com/enterprise/trade-license/src/application/auth"
 	"github.com/enterprise/trade-license/src/config"
 	"github.com/enterprise/trade-license/src/domain/tradelivense"
 	postgresrepo "github.com/enterprise/trade-license/src/infrastructure/persistence/postgres"
@@ -32,12 +34,47 @@ func main() {
 		log.Fatalf("seed: failed to connect: %v", err)
 	}
 
+	userRepo := postgresrepo.NewUserRepository(db)
+	authSvc  := auth.NewService(userRepo, cfg.JWTSecret)
+
 	repo := postgresrepo.NewApplicationRepository(db)
 	ctx := context.Background()
 
 	fmt.Println("\n========================================")
 	fmt.Println("  Trade License — Database Seed")
 	fmt.Println("========================================")
+
+	// ── Seed user accounts ────────────────────────────────────────────────────
+	// All demo users share the password "demo" for easy exploration.
+	demoUsers := []struct {
+		userID string
+		role   string
+	}{
+		{"customer-seed-001", "CUSTOMER"},
+		{"customer-seed-002", "CUSTOMER"},
+		{"customer-seed-003", "CUSTOMER"},
+		{"customer-seed-004", "CUSTOMER"},
+		{"customer-seed-005", "CUSTOMER"},
+		{"customer-seed-006", "CUSTOMER"},
+		{"customer-seed-007", "CUSTOMER"},
+		{"customer-seed-008", "CUSTOMER"},
+		{"reviewer-seed-001", "REVIEWER"},
+		{"approver-seed-001", "APPROVER"},
+	}
+
+	fmt.Println("\n── User accounts ──")
+	for _, u := range demoUsers {
+		err := authSvc.Register(u.userID, "demo", u.role)
+		if err != nil && !errors.Is(err, auth.ErrUserExists) {
+			log.Fatalf("seed: register %s: %v", u.userID, err)
+		}
+		status := "created"
+		if errors.Is(err, auth.ErrUserExists) {
+			status = "already exists"
+		}
+		fmt.Printf("  %-30s [%s]  %s\n", u.userID, u.role, status)
+	}
+	fmt.Println("  (all demo accounts use password: demo)")
 
 	// ── 1. PENDING ────────────────────────────────────────────────────────────
 	// Customer has started the process but not yet submitted.
