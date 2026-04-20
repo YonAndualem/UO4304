@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppCard } from "@/components/AppCard";
+import { EmptyState } from "@/components/EmptyState";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { customerApi, ApiResponseError } from "@/lib/api";
 import type { ApplicationDTO, ApplicationStatus } from "@/lib/types";
@@ -85,9 +86,13 @@ export default function CustomerApplicationsPage() {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!loading && !error && filtered.length === 0 && (
-        <p className="text-gray-500 text-center py-12">
-          {tab === "active" ? "No active applications." : tab === "completed" ? "No completed applications." : "No applications yet. Start by submitting one."}
-        </p>
+        <EmptyState
+          icon={tab === "completed" ? "✅" : "📄"}
+          title={tab === "active" ? "No active applications" : tab === "completed" ? "No completed applications" : "No applications yet"}
+          subtitle={tab === "active" ? "Applications in progress will appear here." : tab === "completed" ? "Approved, rejected, or cancelled applications will show here." : "Submit your first trade license application to get started."}
+          demoHint="Want to see the full workflow? Use the Guided Demo to run through a complete scenario automatically."
+          demoAction={{ label: "Open Guided Demo", href: "/guided-demo" }}
+        />
       )}
 
       <div className="space-y-3">

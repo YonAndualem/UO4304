@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppCard } from "@/components/AppCard";
+import { EmptyState } from "@/components/EmptyState";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { reviewerApi, ApiResponseError } from "@/lib/api";
 import type { ApplicationDTO } from "@/lib/types";
@@ -44,7 +45,13 @@ export default function ReviewerQueuePage() {
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!loading && !error && apps.length === 0 && (
-        <p className="text-gray-500 text-center py-12">Queue is empty — no applications to review.</p>
+        <EmptyState
+          icon="📭"
+          title="Queue is empty"
+          subtitle="No applications are waiting for review right now."
+          demoHint="Run the Happy Path scenario to see a submitted application appear here."
+          demoAction={{ label: "Open Guided Demo", href: "/guided-demo?scenario=happy" }}
+        />
       )}
 
       <div className="space-y-3">
