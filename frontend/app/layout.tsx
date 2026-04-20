@@ -5,6 +5,7 @@ import { IdentityProvider } from "@/contexts/IdentityContext";
 import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { NavBar } from "@/components/NavBar";
 import { DemoBanner } from "@/components/DemoBanner";
+import { RoleBar } from "@/components/RoleBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
           <DemoModeProvider>
             <NavBar />
             <DemoBanner />
+            <RoleBar />
             <main className="flex-1">{children}</main>
           </DemoModeProvider>
         </IdentityProvider>
