@@ -28,11 +28,13 @@ Written in Go (backend) and Next.js (frontend).
 5. [The Application Layer](#5-the-application-layer)
    - 5.1 [Command Handlers (Write Side)](#51-command-handlers-write-side)
    - 5.2 [Query Handlers (Read Side)](#52-query-handlers-read-side)
+   - 5.3 [Auth Service](#53-auth-service)
 6. [The Infrastructure Layer](#6-the-infrastructure-layer)
    - 6.1 [GORM Models](#61-gorm-models)
    - 6.2 [Database Initialization](#62-database-initialization)
    - 6.3 [Mapper](#63-mapper)
    - 6.4 [Repository Implementation](#64-repository-implementation)
+   - 6.5 [User Repository](#65-user-repository)
 7. [The Presentation Layer](#7-the-presentation-layer)
    - 7.1 [Middleware](#71-middleware)
    - 7.2 [HTTP Handlers](#72-http-handlers)
@@ -45,6 +47,7 @@ Written in Go (backend) and Next.js (frontend).
    - 9.4 [Components](#94-components)
    - 9.5 [API Client](#95-api-client)
    - 9.6 [Type Definitions](#96-type-definitions)
+   - 9.7 [Demo Mode](#97-demo-mode)
 10. [Workflow State Machine](#10-workflow-state-machine)
     - 10.1 [Status Diagram](#101-status-diagram)
     - 10.2 [Role Responsibilities](#102-role-responsibilities)
@@ -220,6 +223,8 @@ UO4304/
 │   │       └── errors.go            # Domain error sentinels
 │   │
 │   ├── application/
+│   │   ├── auth/
+│   │   │   └── service.go           # Auth service: Register, Login (bcrypt + JWT)
 │   │   ├── command/                 # Write-side use cases
 │   │   │   ├── submit_application.go
 │   │   │   ├── cancel_application.go
@@ -237,28 +242,30 @@ UO4304/
 │   │           ├── db.go            # Opens DB connection and runs AutoMigrate
 │   │           ├── mapper.go        # Converts between domain objects ↔ GORM models
 │   │           ├── repository.go    # ApplicationRepository implementation (GORM)
+│   │           ├── user_repository.go  # UserRepository implementation (GORM)
 │   │           └── models/
-│   │               └── models.go    # GORM-annotated table structs
+│   │               └── models.go    # GORM-annotated table structs (incl. User)
 │   │
 │   ├── presentation/
 │   │   └── http/
 │   │       ├── router.go            # Registers all routes and middleware chains
 │   │       ├── handler/
+│   │       │   ├── auth_handler.go       # POST /api/auth/register + /login
 │   │       │   ├── customer_handler.go   # CUSTOMER role endpoints
 │   │       │   ├── reviewer_handler.go   # REVIEWER role endpoints
 │   │       │   ├── approver_handler.go   # APPROVER role endpoints
 │   │       │   └── errors.go             # Domain error → HTTP status code mapper
 │   │       └── middleware/
-│   │           └── role.go          # RequireRole middleware + UserID extractor
+│   │           └── role.go          # JWTAuth middleware + RequireRole + UserID extractor
 │   │
 │   └── testutil/
 │       └── mock_repository.go       # In-memory repository for unit tests
 │
 └── frontend/                        # Next.js 16 App Router frontend
     ├── app/
-    │   ├── layout.tsx               # Root layout with navbar and identity context
-    │   ├── page.tsx                 # Login / quick-select page
-    │   ├── test-flow/page.tsx       # Guided multi-scenario test flow
+    │   ├── layout.tsx               # Root layout: IdentityProvider, DemoModeProvider, NavBar, DemoBanner
+    │   ├── page.tsx                 # Sign In / Create Account / Demo Accounts tabs
+    │   ├── guided-demo/page.tsx     # Guided multi-scenario demo flow (resolves JWT tokens at mount)
     │   ├── customer/
     │   │   └── applications/
     │   │       ├── page.tsx         # Customer application list (tabbed)
@@ -278,14 +285,20 @@ UO4304/
     │   ├── StatusBadge.tsx          # Colored status pill
     │   ├── WorkflowTimeline.tsx     # Step progress indicator
     │   ├── ActionModal.tsx          # Reviewer/approver action dialog
-    │   ├── NavBar.tsx               # Top navigation bar
+    │   ├── NavBar.tsx               # Top nav: Live/Demo toggle, Guided Demo link (demo only)
+    │   ├── DemoBanner.tsx           # Amber banner shown in Demo Mode
+    │   ├── RoleBar.tsx              # Colored bar showing current user role and ID
+    │   ├── DemoDrawer.tsx           # Slide-out scenario picker (demo only)
+    │   ├── StatusLegend.tsx         # Collapsible status reference panel (demo only)
+    │   ├── EmptyState.tsx           # Empty list placeholder with optional demo hint
     │   └── ui/                      # shadcn/ui primitive components
     ├── lib/
-    │   ├── api.ts                   # Typed API client for all backend endpoints
+    │   ├── api.ts                   # Typed API client: authApi + customerApi + reviewerApi + approverApi
     │   ├── types.ts                 # TypeScript type definitions mirroring backend DTOs
-    │   └── identity.ts              # Identity (userId + role) session helpers
+    │   └── identity.ts              # Identity (userId + role + token) session helpers
     └── contexts/
-        └── IdentityContext.tsx      # React context for the current user session
+        ├── IdentityContext.tsx      # React context for the current user session
+        └── DemoModeContext.tsx      # React context for Live/Demo mode toggle
 ```
 
 ---
@@ -630,6 +643,42 @@ The `toDTO()` private function performs the mapping from domain aggregate to DTO
 This mapping boundary is intentional — the API contract can evolve independently
 of the domain model.
 
+### 5.3 Auth Service
+
+**File:** `src/application/auth/service.go`
+
+The auth service handles user account management and JWT issuance. It lives in the
+application layer because it orchestrates infrastructure (a `UserRepository`) and
+returns tokens that the presentation layer needs — it is a use case, not a domain rule.
+
+```go
+type UserRepository interface {
+    Create(ctx, userID, passwordHash, role string) error
+    FindByUserID(ctx, userID string) (*UserRecord, error)
+}
+```
+
+**`Register(userID, password, role string) error`**
+
+1. Hashes the password with bcrypt (cost 12).
+2. Calls `repo.Create()`. If the unique constraint fires, returns `ErrUserExists`.
+
+**`Login(userID, password string) (token, role string, err error)`**
+
+1. Loads the user record via `repo.FindByUserID()`. Missing user returns `ErrInvalidPassword`
+   (same error as wrong password — prevents user enumeration).
+2. Compares the provided password against the bcrypt hash.
+3. Signs a JWT (HS256, 24-hour expiry) containing `user_id` and `role` claims.
+4. Returns the signed token and the user's role.
+
+**`ValidateToken(tokenStr string) (*Claims, error)`**
+
+Parses and validates the JWT signature and expiry. Returns the claims or an error.
+
+**Error sentinels:**
+- `ErrUserExists` — returned on duplicate registration.
+- `ErrInvalidPassword` — returned on login failure (wrong user or wrong password).
+
 ---
 
 ## 6. The Infrastructure Layer
@@ -658,6 +707,7 @@ ApplicationHistory → application_history table (append-only, no update/delete)
 Commodity          → commodities table (one-to-one with application)
 Document           → documents table (one-to-many with application)
 Payment            → payments table (one-to-one; TransactionID has unique index)
+User               → users table (UserID unique index; PasswordHash is bcrypt)
 ```
 
 **Important constraints:**
@@ -745,6 +795,21 @@ in arrival order and prevent starvation.
 
 **`Delete(ctx, id)`** — GORM soft-delete: sets `deleted_at = NOW()` on the row.
 
+### 6.5 User Repository
+
+**File:** `src/infrastructure/persistence/postgres/user_repository.go`
+
+Implements `auth.UserRepository` using GORM.
+
+**`Create(ctx, userID, passwordHash, role)`** — inserts a new `users` row. If the
+database unique constraint on `user_id` fires, the error is mapped to `auth.ErrUserExists`
+so the presentation layer can return a clean 409 response.
+
+**`FindByUserID(ctx, userID)`** — loads the user record by `user_id`. If GORM returns
+`gorm.ErrRecordNotFound`, it is mapped to `auth.ErrInvalidPassword` — this is
+intentional; callers cannot distinguish "user not found" from "wrong password,"
+preventing user enumeration attacks.
+
 ---
 
 ## 7. The Presentation Layer
@@ -765,19 +830,22 @@ It does **not** know about:
 
 **File:** `src/presentation/http/middleware/role.go`
 
+**`JWTAuth(svc *auth.Service) fiber.Handler`**
+
+Validates every request to protected routes. Reads the `Authorization: Bearer <token>`
+header, calls `svc.ValidateToken()`, and if valid, stores the extracted claims in
+Fiber locals (`c.Locals("userID", ...)`, `c.Locals("role", ...)`). Returns 401
+for missing, malformed, expired, or tampered tokens.
+
 **`RequireRole(role string) fiber.Handler`**
 
-A Fiber middleware factory that returns a handler. The handler checks the `X-Role`
-header against the required role and returns 403 if they don't match.
-
-In production, this header would be derived from a validated JWT token rather than
-trusted from the client directly. The middleware is kept thin so swapping to JWT
-requires changing only this file.
+Reads the role already stored by `JWTAuth` from `c.Locals("role")` and returns 403
+if it does not match the required role. Always chained after `JWTAuth`.
 
 **`UserID(c *fiber.Ctx) string`**
 
-Extracts the `X-User-ID` header. Returns empty string if absent. Callers check
-for empty string and return 400. Same note applies — production would verify a JWT.
+Reads the user ID already stored by `JWTAuth` from `c.Locals("userID")`. Returns
+empty string if absent. All handlers call this to identify the acting user.
 
 ### 7.2 HTTP Handlers
 
@@ -788,6 +856,22 @@ for empty string and return 400. Same note applies — production would verify a
 Centralizes the mapping from domain errors to HTTP status codes. All handlers
 call this instead of checking errors individually. The switch uses `errors.Is()`
 which correctly handles wrapped errors.
+
+**`auth_handler.go`** — `AuthHandler`
+
+Two public (unauthenticated) endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/auth/register` | Create a new user account |
+| `POST` | `/api/auth/login` | Authenticate and receive a JWT |
+
+`register` validates that `user_id` matches `^[a-zA-Z0-9_-]{1,64}$`, password is
+at least 6 characters, and role is one of `CUSTOMER`/`REVIEWER`/`APPROVER`.
+Returns 409 if the user ID is already taken.
+
+`login` returns `{ "token": "...", "user_id": "...", "role": "..." }` on success,
+or 401 with `{"error": "invalid user ID or password"}` on failure.
 
 **`customer_handler.go`** — `CustomerHandler`
 
@@ -831,7 +915,10 @@ is re-settled via `ReplacePayment()`.
 - `recover.New()` — prevents a runtime panic from crashing the process. Returns 500 instead.
 - `logger.New()` — logs every request and response for observability.
 - `GET /health` — no-auth health check for container probes.
-- Three role-scoped route groups, each protected by `RequireRole` middleware.
+- `POST /api/auth/register` and `POST /api/auth/login` — public, no JWT required.
+- Three role-scoped route groups, each protected first by `JWTAuth(authSvc)` then
+  by `RequireRole(...)` middleware. Only requests with a valid JWT carrying the
+  correct role can reach the handlers.
 
 ---
 
@@ -845,13 +932,15 @@ exactly which implementations are in use and how they are connected.
 
 The wiring order follows the Dependency Rule from inside out:
 
-1. Load config from environment.
-2. Construct the infrastructure adapter (database connection + GORM repository).
-3. Construct all application-layer command handlers (inject repository).
-4. Construct all application-layer query handlers (inject repository).
-5. Construct all presentation-layer HTTP handlers (inject application handlers).
-6. Build the router (inject HTTP handlers).
-7. Start the server.
+1. Load config from environment (`JWT_SECRET`, database DSN, server port).
+2. Construct the infrastructure adapter (database connection + GORM repositories).
+3. Construct the auth service (inject user repository + JWT secret).
+4. Construct the auth HTTP handler (inject auth service).
+5. Construct all application-layer command handlers (inject application repository).
+6. Construct all application-layer query handlers (inject application repository).
+7. Construct all presentation-layer role HTTP handlers (inject application handlers).
+8. Build the router (inject all handlers + auth service for JWT middleware).
+9. Start the server.
 
 ---
 
@@ -892,20 +981,34 @@ frontend/
 
 **`app/layout.tsx`**
 
-Root layout. Wraps every page with `IdentityProvider` (makes the current user
-available globally via React context) and `NavBar`. Sets `<html lang="en">` and
-base body styles.
+Root layout. Wraps every page with:
+- `IdentityProvider` — current user session (JWT token + role) via React context.
+- `DemoModeProvider` — Live/Demo mode toggle state persisted in `localStorage`.
+- `NavBar` — top navigation bar.
+- `DemoBanner` — amber "Demo Mode" banner (visible only when Demo Mode is on).
+- `RoleBar` — colored role context bar below the navbar (visible when signed in).
+- `DemoDrawer` — slide-out scenario picker (visible only in Demo Mode).
+- `StatusLegend` — collapsible status reference panel (visible only in Demo Mode).
 
-**`app/page.tsx`** — Login / Quick-select
+**`app/page.tsx`** — Sign In / Demo Accounts
 
-Two-column layout:
-- Left: Manual sign-in form (enter any user ID, pick a role, click Enter Portal).
-- Right: Seed credentials panel with one-click login for all 10 pre-seeded users.
+Single card with two tabs:
 
-Identity is stored in `sessionStorage` so it persists across page navigations
-within the tab but resets on close. No passwords — this is a demo system.
+**Sign In tab** — segmented toggle between "Sign In" and "Create Account":
+- *Sign In*: user ID + password fields. Authenticates against the backend and stores
+  the returned JWT in `localStorage`.
+- *Create Account*: user ID + password + role picker. Registers the account then
+  immediately logs in.
 
-**`app/test-flow/page.tsx`** — Guided Test Flow
+**Demo Accounts tab** — lists all 10 pre-seeded accounts. Clicking any entry calls
+`authApi.login(userId, "demo")` to obtain a real JWT and sign in instantly.
+
+**`app/guided-demo/page.tsx`** — Guided Demo Flow
+
+Resolves real JWT tokens for `customer-seed-001`, `reviewer-seed-001`, and
+`approver-seed-001` at page mount via `Promise.all`. Stores them in a page-level
+`DemoIdentityContext` so every step sub-component can make authenticated API calls
+without prop drilling.
 
 Scenario selector with 6 pre-built flows:
 
@@ -919,8 +1022,7 @@ Scenario selector with 6 pre-built flows:
 | Customer Cancels | Submit → Cancel |
 
 Each scenario shows a step progress bar. The active step renders the appropriate
-form or action panel. Uses the pre-seeded identities (`customer-seed-001`,
-`reviewer-seed-001`, `approver-seed-001`) automatically.
+form or action panel.
 
 **`app/customer/applications/page.tsx`** — Customer Application List
 
@@ -1008,8 +1110,30 @@ Shows available actions as buttons, a notes textarea (required for non-approval
 actions), and a confirm button.
 
 **`components/NavBar.tsx`** — Top navigation bar.
-Shows the current user ID, role, and links relevant to the current role.
-Includes a sign-out button that clears the session.
+Shows the current user ID, role badge, and links relevant to the current role.
+Contains a Live/Demo pill toggle — clicking switches `DemoModeContext` and persists
+the choice to `localStorage`. In Demo Mode the header turns amber and a "Guided Demo"
+link appears. Includes a sign-out button that clears the JWT session.
+
+**`components/DemoBanner.tsx`** — Amber full-width banner rendered below the navbar
+when Demo Mode is active. Explains that the user is in a demo walkthrough and
+provides an "Exit demo" button.
+
+**`components/RoleBar.tsx`** — Colored context bar below the navbar (blue=CUSTOMER,
+green=REVIEWER, purple=APPROVER). Shows the role name, a plain-English description,
+and the current user ID. Hidden when not signed in.
+
+**`components/DemoDrawer.tsx`** — Fixed vertical "🎬 Scenarios" tab on the right
+edge of the screen, visible only in Demo Mode. Opens a slide-out panel listing all
+6 demo scenarios as links to `/guided-demo?scenario=<id>`.
+
+**`components/StatusLegend.tsx`** — Fixed bottom-left collapsible "📋 Status Legend"
+panel, visible only in Demo Mode. Expands to show all 8 application statuses with
+color-coded dots and plain-English descriptions.
+
+**`components/EmptyState.tsx`** — Placeholder shown when a list is empty. Accepts
+an icon, title, and subtitle. In Demo Mode, renders an additional amber hint box
+with an action link pointing to the relevant demo scenario.
 
 **`components/ui/`** — shadcn/ui primitives: `Button`, `Card`, `Input`, `Label`,
 `Textarea`, `Badge`, `Dialog`, `Select`, `Separator`, `Skeleton`.
@@ -1021,11 +1145,18 @@ customize them freely.
 **File:** `frontend/lib/api.ts`
 
 Typed wrapper around `fetch`. The base `request<T>()` function handles:
-- Attaching `Content-Type: application/json`, `X-User-ID`, and `X-Role` headers.
+- Attaching `Content-Type: application/json` and `Authorization: Bearer <token>` headers.
 - Treating HTTP 204 as a successful empty response.
 - Throwing `ApiResponseError` (with status code and body text) for non-OK responses.
 
-Three API namespaces:
+A separate `authRequest<T>()` function is used for the two public auth endpoints —
+it sends no `Authorization` header.
+
+Four API namespaces:
+
+**`authApi`** (public — no identity required)
+- `register(userId, password, role)` — POST `/api/auth/register`.
+- `login(userId, password)` — POST `/api/auth/login`. Returns `AuthResponse: { token, user_id, role }`.
 
 **`customerApi`**
 - `submit(identity, payload)` — POST + GET (backend returns only the ID, so a
@@ -1051,7 +1182,37 @@ Key types:
 - `ApplicationStatus` — union type of all valid status strings.
 - `ApplicationDTO` — full application with history array.
 - `HistoryEntryDTO` — single audit trail entry.
-- `Identity` — `{ userId: string; role: Role }`.
+- `Identity` — `{ userId: string; role: Role; token: string }`. The `token` field
+  carries the JWT returned by login. It is sent as the `Authorization: Bearer`
+  header on every authenticated API call and validated on load from `localStorage`.
+
+### 9.7 Demo Mode
+
+Demo Mode is a UI-only feature that makes the system easier to present and explore.
+It has no backend counterpart — all changes are purely cosmetic and navigational.
+
+**How it works:**
+
+1. The `DemoModeContext` (`frontend/contexts/DemoModeContext.tsx`) holds a boolean
+   `isDemoMode` flag. On first render it reads from `localStorage` to avoid hydration
+   mismatches. The `toggleDemoMode()` function flips the flag and persists it.
+
+2. The Live/Demo pill in `NavBar` calls `toggleDemoMode()` and gives immediate
+   visual feedback — the active segment gets a solid background, and the entire
+   header turns amber when in Demo Mode.
+
+3. Several components read `isDemoMode` to conditionally render:
+   - `DemoBanner` — always visible at the top when Demo Mode is on.
+   - `RoleBar` — always visible below the navbar when signed in (both modes).
+   - `DemoDrawer` — scenario picker tab, Demo Mode only.
+   - `StatusLegend` — status reference panel, Demo Mode only.
+   - `EmptyState` — demo hint box, Demo Mode only.
+   - `NavBar` — "Guided Demo" link, Demo Mode only.
+
+**Why this matters for presentations:** Without Demo Mode the UI looks like a normal
+enterprise portal. With Demo Mode on, the presenter can see all workflow states at a
+glance, navigate between scenarios with one click, and explain status meanings without
+leaving the screen.
 
 ---
 
@@ -1136,11 +1297,33 @@ than correct) or `Delete()` after cancelling.
 
 ## 11. API Reference
 
-All endpoints require role-appropriate headers:
+Protected endpoints require a JWT in the Authorization header:
 ```
-X-User-ID: <user-id>
-X-Role: CUSTOMER | REVIEWER | APPROVER
+Authorization: Bearer <token>
 Content-Type: application/json
+```
+
+The token is obtained from `POST /api/auth/login`. The role encoded in the token
+determines which route group (`/api/customer`, `/api/reviewer`, `/api/approver`)
+the caller may access.
+
+### Auth Endpoints (public — no token required)
+
+**Register**
+```
+POST /api/auth/register
+Body: { "user_id": "alice", "password": "secret123", "role": "CUSTOMER" }
+→ 201 { "user_id": "alice", "role": "CUSTOMER" }
+→ 400 if user_id/password/role missing or invalid (password < 6 chars, unknown role)
+→ 409 if user_id already exists
+```
+
+**Login**
+```
+POST /api/auth/login
+Body: { "user_id": "alice", "password": "secret123" }
+→ 200 { "token": "<jwt>", "user_id": "alice", "role": "CUSTOMER" }
+→ 401 { "error": "invalid user ID or password" }
 ```
 
 ### Health
@@ -1333,6 +1516,16 @@ CREATE TABLE payments (
     paid_at        TIMESTAMPTZ,
     status         VARCHAR
 );
+
+-- users: accounts for authentication
+CREATE TABLE users (
+    id            UUID PRIMARY KEY,
+    user_id       VARCHAR NOT NULL,
+    password_hash VARCHAR NOT NULL,  -- bcrypt, cost 12
+    role          VARCHAR NOT NULL,  -- CUSTOMER | REVIEWER | APPROVER
+    created_at    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX ON users (user_id);
 ```
 
 **Cascade deletes** on all child tables mean that if an `Application` row is
@@ -1359,6 +1552,7 @@ provided for local development.
 | `DB_PASSWORD` | `postgres` | PostgreSQL password |
 | `DB_NAME` | `trade_license` | PostgreSQL database name |
 | `DB_SSL_MODE` | `disable` | SSL mode (set to `require` in production) |
+| `JWT_SECRET` | `dev-secret` | HMAC-SHA256 signing key for JWT tokens. **Must be changed in production.** |
 
 ---
 
@@ -1429,11 +1623,12 @@ go test ./src/domain/tradelivense/ -v -run TestTradeLicenseApplication
 
 ## 15. Seed Data
 
-After running `docker compose run --rm seed`, the following users exist:
+After running `docker compose run --rm seed`, the following accounts exist.
+**Password for all seed accounts is `demo`.**
 
 | User ID | Role | Application Status | Notes |
 |---|---|---|---|
-| `customer-seed-001` | CUSTOMER | PENDING | Used by test flow; can be submitted |
+| `customer-seed-001` | CUSTOMER | PENDING | Used by Guided Demo; can be submitted |
 | `customer-seed-002` | CUSTOMER | SUBMITTED | Awaiting reviewer action |
 | `customer-seed-003` | CUSTOMER | ACCEPTED | Awaiting approver action |
 | `customer-seed-004` | CUSTOMER | APPROVED | Fully approved — workflow complete |
@@ -1444,7 +1639,9 @@ After running `docker compose run --rm seed`, the following users exist:
 | `reviewer-seed-001` | REVIEWER | — | Sees SUBMITTED + REREVIEW queues |
 | `approver-seed-001` | APPROVER | — | Sees ACCEPTED queue |
 
-Log in as any of these from the home page with one click.
+Sign in as any of these from the **Demo Accounts** tab on the home page with one
+click — the frontend calls `POST /api/auth/login` with password `demo` to obtain a
+real JWT. Existing accounts are skipped on re-run, so the seed command is idempotent.
 
 ---
 
@@ -1478,9 +1675,10 @@ Example: `TestTradeLicenseApplication_Submit_RequiresDocuments`
 
 ### Integration testing (manual)
 
-Use the **Test Flow** page at http://localhost:3000/test-flow to walk through
+Use the **Guided Demo** page at http://localhost:3000/guided-demo to walk through
 complete scenarios end-to-end in the UI. Six scenarios cover the full range of
-workflow paths.
+workflow paths. Enable Demo Mode via the Live/Demo toggle in the navbar first to
+unlock the scenario picker drawer and status legend.
 
 For API-level testing, a Postman collection is included:
 ```
@@ -1491,16 +1689,28 @@ trade-license.postman_collection.json
 
 ## 17. Security Notes
 
-**Authentication is a placeholder.** The `X-User-ID` and `X-Role` headers are
-trusted directly from the client. In production:
+**JWT Authentication.** All protected endpoints require a signed JWT in the
+`Authorization: Bearer` header. Tokens are issued by `POST /api/auth/login`,
+signed with HMAC-SHA256 using `JWT_SECRET`, and expire after 24 hours. The
+`JWTAuth` middleware validates the signature and expiry on every request before
+the role check runs. Raw `X-User-ID` / `X-Role` headers are no longer trusted.
 
-1. Implement JWT authentication. The `middleware/role.go` file is the only
-   place that needs to change — extract user ID and role from a verified JWT claim
-   instead of from raw headers.
+**Password hashing.** User passwords are hashed with bcrypt at cost 12 before
+storage. Plain-text passwords are never written to the database or logged.
 
-2. All business logic, ownership checks (`app.ApplicantID != cmd.ApplicantID`),
-   and domain error mappings are already in place. Only the header-trust
-   assumption in the middleware needs to be hardened.
+**User enumeration protection.** Failed login always returns the same error
+(`"invalid user ID or password"`) whether the user ID does not exist or the
+password is wrong. The user repository maps `gorm.ErrRecordNotFound` to
+`auth.ErrInvalidPassword` so the auth service cannot distinguish the two cases.
+
+**JWT secret rotation.** Set `JWT_SECRET` to a long random value in production
+(e.g. `openssl rand -hex 32`). Changing the secret invalidates all existing tokens,
+forcing users to log in again.
+
+**Ownership checks.** All business logic and ownership checks
+(`app.ApplicantID != cmd.ApplicantID`) are enforced in the domain and application
+layers regardless of how the caller authenticated. A valid JWT grants access to
+the route group — it does not bypass application-level authorization.
 
 **Document URL validation.** The frontend validates that document URLs start with
 `http://` or `https://` before rendering them as links, preventing `javascript:`
