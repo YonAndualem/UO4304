@@ -6,6 +6,7 @@ import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { NavBar } from "@/components/NavBar";
 import { DemoBanner } from "@/components/DemoBanner";
 import { RoleBar } from "@/components/RoleBar";
+import { DemoDrawer } from "@/components/DemoDrawer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +39,7 @@ export default function RootLayout({
             <NavBar />
             <DemoBanner />
             <RoleBar />
+            <DemoDrawer />
             <main className="flex-1">{children}</main>
           </DemoModeProvider>
         </IdentityProvider>
