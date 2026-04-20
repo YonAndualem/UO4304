@@ -7,6 +7,7 @@ import { NavBar } from "@/components/NavBar";
 import { DemoBanner } from "@/components/DemoBanner";
 import { RoleBar } from "@/components/RoleBar";
 import { DemoDrawer } from "@/components/DemoDrawer";
+import { StatusLegend } from "@/components/StatusLegend";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
             <DemoBanner />
             <RoleBar />
             <DemoDrawer />
+            <StatusLegend />
             <main className="flex-1">{children}</main>
           </DemoModeProvider>
         </IdentityProvider>
