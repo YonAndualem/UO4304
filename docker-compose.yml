@@ -59,5 +59,20 @@ services:
       postgres:
         condition: service_healthy
 
+  # reset deletes all non-demo data. Demo seed accounts and their applications
+  # are preserved. Run manually with: docker compose run --rm reset
+  reset:
+    build:
+      context: .
+      dockerfile: Dockerfile.reset
+    profiles: ["reset"]
+    restart: "no"
+    env_file: .env.example
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
