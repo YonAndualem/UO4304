@@ -367,7 +367,7 @@ export default function TestFlowPage() {
   if (!selectedScenario) {
     return (
       <div className="max-w-2xl mx-auto py-10 px-4">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Test Flow</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Guided Demo</h1>
         <p className="text-sm text-gray-500 mb-8">Choose a scenario to walk through the full workflow without switching users manually.</p>
 
         <div className="grid gap-3">

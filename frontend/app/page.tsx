@@ -126,7 +126,7 @@ export default function HomePage() {
               <CardTitle className="text-base">Seed Credentials</CardTitle>
               <CardDescription>
                 Pre-seeded users — one click to enter.{" "}
-                <Link href="/test-flow" className="text-blue-600 hover:underline">Run full flow →</Link>
+                <Link href="/guided-demo" className="text-blue-600 hover:underline">Guided Demo →</Link>
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { useDemoMode } from "@/contexts/DemoModeContext";
+import { Separator } from "@/components/ui/separator";
 
 const ROLE_HOME: Record<string, string> = {
   CUSTOMER: "/customer/applications",
@@ -65,6 +66,18 @@ export function NavBar() {
             Demo
           </span>
         </button>
+
+        {isDemoMode && (
+          <>
+            <Link
+              href="/guided-demo"
+              className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded-full px-3 py-1 hover:bg-amber-200 transition-colors"
+            >
+              Guided Demo
+            </Link>
+            <Separator orientation="vertical" className="h-5" />
+          </>
+        )}
 
         {identity && (
           <>
