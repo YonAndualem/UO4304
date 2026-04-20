@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { IdentityProvider } from "@/contexts/IdentityContext";
+import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { NavBar } from "@/components/NavBar";
+import { DemoBanner } from "@/components/DemoBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,8 +33,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-gray-50">
         <IdentityProvider>
-          <NavBar />
-          <main className="flex-1">{children}</main>
+          <DemoModeProvider>
+            <NavBar />
+            <DemoBanner />
+            <main className="flex-1">{children}</main>
+          </DemoModeProvider>
         </IdentityProvider>
       </body>
     </html>
