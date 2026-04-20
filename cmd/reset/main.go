@@ -50,8 +50,9 @@ func main() {
 	fmt.Println()
 
 	// Delete non-seed applications (hard delete — bypasses soft delete).
+	// Child rows (commodities, documents, payments, history) cascade automatically.
 	res := db.Exec(
-		"DELETE FROM applications WHERE applicant_id NOT IN ?",
+		"DELETE FROM applications WHERE applicant_id NOT IN (?)",
 		seedUserIDs,
 	)
 	if res.Error != nil {
@@ -61,7 +62,7 @@ func main() {
 
 	// Delete non-seed user accounts.
 	res = db.Exec(
-		"DELETE FROM users WHERE user_id NOT IN ?",
+		"DELETE FROM users WHERE user_id NOT IN (?)",
 		seedUserIDs,
 	)
 	if res.Error != nil {
