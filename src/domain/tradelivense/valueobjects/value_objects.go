@@ -1,9 +1,7 @@
-// Package tradelivense contains the Trade License bounded context.
-//
-// This is the heart of the system — the domain layer. It has zero dependencies
-// on any framework, database, or HTTP library. All business rules and invariants
-// live here and are enforced by the types and methods in this package.
-package tradelivense
+// Package valueobjects defines the immutable value types for the Trade License bounded context.
+// Value objects are defined entirely by their value — two instances with the same
+// data are considered equal. They validate themselves at construction time.
+package valueobjects
 
 import (
 	"errors"
@@ -12,10 +10,8 @@ import (
 )
 
 // ApplicationID is a strongly-typed value object wrapping a UUID string.
-//
-// Using a dedicated type instead of a plain string prevents callers from
-// accidentally passing any random string as an ID — the compiler enforces
-// the distinction between an ApplicationID and, say, an ApplicantID.
+// Using a dedicated type prevents callers from accidentally passing any string
+// where an application identifier is expected.
 type ApplicationID struct {
 	value string
 }
@@ -26,8 +22,7 @@ func NewApplicationID() ApplicationID {
 }
 
 // ApplicationIDFrom reconstructs an ApplicationID from a string (e.g. from a URL param).
-// Returns an error if the string is not a valid UUID, preventing corrupt identifiers
-// from reaching the domain.
+// Returns an error if the string is not a valid UUID.
 func ApplicationIDFrom(value string) (ApplicationID, error) {
 	if _, err := uuid.Parse(value); err != nil {
 		return ApplicationID{}, errors.New("invalid application ID format")
@@ -35,14 +30,13 @@ func ApplicationIDFrom(value string) (ApplicationID, error) {
 	return ApplicationID{value: value}, nil
 }
 
-// String returns the raw UUID string, used when persisting or serialising the ID.
+// String returns the raw UUID string for persistence or serialisation.
 func (id ApplicationID) String() string { return id.value }
 
 // ─── LicenseType ─────────────────────────────────────────────────────────────
 
 // LicenseType is a constrained value object representing the category of license
-// being applied for. Only values registered in validLicenseTypes are accepted,
-// making it impossible to create an application with an unknown license type.
+// being applied for. Only values in the allow-list are accepted.
 type LicenseType struct {
 	value string
 }
@@ -50,13 +44,11 @@ type LicenseType struct {
 // TradeLicense is the only license type supported in this bounded context.
 const TradeLicense = "TRADE_LICENSE"
 
-// validLicenseTypes acts as an allow-list. Add new types here as the system grows.
 var validLicenseTypes = map[string]bool{
 	TradeLicense: true,
 }
 
 // NewLicenseType validates and constructs a LicenseType.
-// Returns an error for any value not in the allow-list.
 func NewLicenseType(value string) (LicenseType, error) {
 	if !validLicenseTypes[value] {
 		return LicenseType{}, errors.New("invalid license type: " + value)
@@ -70,19 +62,8 @@ func (lt LicenseType) String() string { return lt.value }
 // ─── ApplicationStatus ───────────────────────────────────────────────────────
 
 // ApplicationStatus is the current position of an application in the workflow.
-//
 // Valid transitions are enforced exclusively by the TradeLicenseApplication
-// aggregate — nowhere else. This prevents rogue code from jumping the workflow
-// by writing directly to the status field.
-//
-// State machine:
-//
-//	PENDING ──Submit──► SUBMITTED ──Accept──► ACCEPTED ──Approve──► APPROVED
-//	PENDING ──Cancel──► CANCELLED
-//	SUBMITTED ──Reject──► REJECTED
-//	SUBMITTED ──Adjust──► ADJUSTED
-//	ACCEPTED  ──Reject──► REJECTED
-//	ACCEPTED  ──Rereview──► REREVIEW ──(back to Reviewer)──► ACCEPTED / REJECTED / ADJUSTED
+// aggregate — nowhere else.
 type ApplicationStatus string
 
 const (

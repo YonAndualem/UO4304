@@ -1,12 +1,9 @@
-package tradelivense
+// Package events defines the domain events raised by the Trade License aggregate.
+// Events record every meaningful state change and carry the minimum data needed
+// for downstream consumers to act without querying the database.
+package events
 
 import "github.com/enterprise/trade-license/src/domain/common"
-
-// Domain events record every meaningful state change in the Trade License workflow.
-//
-// Each event carries the minimum data needed for downstream consumers to act
-// without querying the database. They are raised inside the aggregate methods
-// and dispatched by the application layer after a successful persist.
 
 // ApplicationSubmittedEvent is raised when a customer successfully submits
 // a new trade license application (Pending → Submitted).
@@ -39,7 +36,7 @@ type ApplicationAcceptedEvent struct {
 func (e ApplicationAcceptedEvent) EventName() string { return "ApplicationAccepted" }
 
 // ApplicationRejectedEvent is raised when either a reviewer or an approver
-// rejects an application. The ActorID identifies which role took the action.
+// rejects an application. ActorID identifies which role took the action.
 type ApplicationRejectedEvent struct {
 	common.BaseDomainEvent
 	ApplicationID string
@@ -50,8 +47,7 @@ type ApplicationRejectedEvent struct {
 func (e ApplicationRejectedEvent) EventName() string { return "ApplicationRejected" }
 
 // ApplicationAdjustedEvent is raised when a reviewer flags an application for
-// adjustment — meaning it requires correction before it can be accepted
-// (Submitted|Rereview → Adjusted).
+// adjustment — requiring correction before it can be accepted (Submitted|Rereview → Adjusted).
 type ApplicationAdjustedEvent struct {
 	common.BaseDomainEvent
 	ApplicationID string

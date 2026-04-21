@@ -1,13 +1,13 @@
-package tradelivense
+// Package domainerrors defines the sentinel errors for the Trade License bounded context.
+// Using a dedicated package prevents callers from importing infrastructure packages
+// into the domain and keeps the error values stable across refactors.
+package domainerrors
 
 import "errors"
 
-// Domain error sentinels allow callers to distinguish error types with errors.Is
-// without importing infrastructure-level error packages into the domain.
 var (
 	// ErrInvalidStatusTransition is returned when a business action is attempted
 	// on an application that is not in the correct state for that action.
-	// For example, trying to Accept an application that is already Approved.
 	ErrInvalidStatusTransition = errors.New("invalid status transition for current state")
 
 	// ErrDocumentRequired is returned when a customer attempts to submit an
