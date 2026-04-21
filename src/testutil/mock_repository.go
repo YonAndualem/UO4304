@@ -69,6 +69,16 @@ func (r *MockRepository) FindByStatus(_ context.Context, status tradelivense.App
 	return result, nil
 }
 
+func (r *MockRepository) Delete(_ context.Context, id tradelivense.ApplicationID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.data[id.String()]; !ok {
+		return tradelivense.ErrApplicationNotFound
+	}
+	delete(r.data, id.String())
+	return nil
+}
+
 // ─── Test fixture helpers ─────────────────────────────────────────────────────
 
 // NewValidLicenseType returns a TRADE_LICENSE LicenseType for use in tests.
