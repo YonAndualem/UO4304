@@ -15,7 +15,7 @@
 package tradelivense
 
 import (
-	"github.com/enterprise/trade-license/src/domain/tradelivense/entities"
+	"github.com/enterprise/trade-license/src/domain/tradelivense/models"
 	domainerrors "github.com/enterprise/trade-license/src/domain/tradelivense/errors"
 	"github.com/enterprise/trade-license/src/domain/tradelivense/repositories"
 	"github.com/enterprise/trade-license/src/domain/tradelivense/valueobjects"
@@ -23,12 +23,12 @@ import (
 
 // ─── Entity type aliases ─────────────────────────────────────────────────────
 
-type TradeLicenseApplication = entities.TradeLicenseApplication
-type Commodity = entities.Commodity
-type Document = entities.Document
-type Payment = entities.Payment
-type PaymentStatus = entities.PaymentStatus
-type HistoryEntry = entities.HistoryEntry
+type TradeLicenseApplication = models.TradeLicenseApplication
+type Commodity = models.Commodity
+type Document = models.Document
+type Payment = models.Payment
+type PaymentStatus = models.PaymentStatus
+type HistoryEntry = models.HistoryEntry
 
 // ─── Value object type aliases ───────────────────────────────────────────────
 
@@ -65,31 +65,31 @@ const (
 
 	TradeLicense = valueobjects.TradeLicense
 
-	PaymentSettled = entities.PaymentSettled
-	PaymentPending = entities.PaymentPending
-	PaymentFailed  = entities.PaymentFailed
+	PaymentSettled = models.PaymentSettled
+	PaymentPending = models.PaymentPending
+	PaymentFailed  = models.PaymentFailed
 )
 
 // ─── Constructor re-exports ──────────────────────────────────────────────────
 
 func NewTradeLicenseApplication(applicantID string, licenseType LicenseType) *TradeLicenseApplication {
-	return entities.NewTradeLicenseApplication(applicantID, licenseType)
+	return models.NewTradeLicenseApplication(applicantID, licenseType)
 }
 
 func NewCommodity(name, description, category string) Commodity {
-	return entities.NewCommodity(name, description, category)
+	return models.NewCommodity(name, description, category)
 }
 
 func NewDocument(name, url, contentType string) Document {
-	return entities.NewDocument(name, url, contentType)
+	return models.NewDocument(name, url, contentType)
 }
 
 func NewPayment(amount float64, currency, transactionID string) Payment {
-	return entities.NewPayment(amount, currency, transactionID)
+	return models.NewPayment(amount, currency, transactionID)
 }
 
 func NewHistoryEntry(actorID, action string, from, to ApplicationStatus, notes string) HistoryEntry {
-	return entities.NewHistoryEntry(actorID, action, from, to, notes)
+	return models.NewHistoryEntry(actorID, action, from, to, notes)
 }
 
 func NewApplicationID() ApplicationID {

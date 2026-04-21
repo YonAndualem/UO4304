@@ -1,6 +1,6 @@
-// Package entities contains the domain entities and the TradeLicenseApplication
+// Package models contains the domain models and the TradeLicenseApplication
 // aggregate root for the Trade License bounded context.
-package entities
+package models
 
 import (
 	"time"
