@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { getFileContent } from '@/actions/file'
 
@@ -29,6 +29,8 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
   const [pageNumber, setPageNumber] = useState(1)
 
   useEffect(() => {
+    let active = true
+
     async function load() {
       setLoading(true)
       setError(null)
@@ -37,6 +39,7 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
       setNumPages(0)
       try {
         const result = await getFileContent(fileKey, token)
+        if (!active) return
         if (!result.success || !result.data) {
           setError(result.message ?? 'Failed to load file')
           return
@@ -50,13 +53,19 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
           setPdfBytes(bytes)
         }
       } catch (err) {
+        if (!active) return
         setError(err instanceof Error ? err.message : 'Failed to load file')
       } finally {
+        if (!active) return
         setLoading(false)
       }
     }
 
     load()
+
+    return () => {
+      active = false
+    }
   }, [fileKey, token])
 
   useEffect(() => {
@@ -66,7 +75,6 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
   }, [onClose])
 
   const isImage = contentType.startsWith('image/')
-  const pdfFile = useMemo(() => pdfBytes ? { data: pdfBytes } : null, [pdfBytes])
 
   return (
     <div
@@ -109,10 +117,10 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
               <img src={imageDataUri} alt={name} className="max-w-full max-h-full object-contain rounded" />
             </div>
           )}
-          {!loading && !error && pdfFile && (
+          {!loading && !error && pdfBytes && (
             <div className="flex flex-col items-center p-4 gap-3">
               <PdfPreview
-                file={pdfFile}
+                bytes={pdfBytes}
                 pageNumber={pageNumber}
                 numPages={numPages}
                 onLoadSuccess={(pages) => { setNumPages(pages); setPageNumber(1) }}
