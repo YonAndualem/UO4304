@@ -12,6 +12,10 @@ COPY frontend/ .
 ARG API_ORIGIN=http://app:8080
 ENV API_ORIGIN=$API_ORIGIN
 
+# MinIO public origin for CSP headers (must be reachable from the browser)
+ARG MINIO_PUBLIC_ORIGIN=http://localhost:9000
+ENV MINIO_PUBLIC_ORIGIN=$MINIO_PUBLIC_ORIGIN
+
 RUN npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────

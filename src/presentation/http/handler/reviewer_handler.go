@@ -5,7 +5,7 @@ import (
 
 	"github.com/enterprise/trade-license/src/application/command"
 	"github.com/enterprise/trade-license/src/application/query"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/presentation/http/middleware"
 )
 
@@ -45,11 +45,11 @@ func (h *ReviewerHandler) ListPendingReview(c *fiber.Ctx) error {
 	// When no filter is given, merge both queues so the reviewer sees everything
 	// that needs their attention without needing two separate API calls.
 	if status == "" {
-		submitted, err := h.listHandler.Handle(c.Context(), string(tradelivense.StatusSubmitted))
+		submitted, err := h.listHandler.Handle(c.Context(), string(valueobjects.StatusSubmitted))
 		if err != nil {
 			return domainError(c, err)
 		}
-		rereview, err := h.listHandler.Handle(c.Context(), string(tradelivense.StatusRereview))
+		rereview, err := h.listHandler.Handle(c.Context(), string(valueobjects.StatusRereview))
 		if err != nil {
 			return domainError(c, err)
 		}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
 )
 
 // domainError maps a domain or application error to the correct HTTP status code
@@ -18,15 +18,15 @@ import (
 //   - 500: unexpected infrastructure failure (DB, network, etc.)
 func domainError(c *fiber.Ctx, err error) error {
 	switch {
-	case errors.Is(err, tradelivense.ErrApplicationNotFound):
+	case errors.Is(err, domainerrors.ErrApplicationNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 
-	case errors.Is(err, tradelivense.ErrForbidden):
+	case errors.Is(err, domainerrors.ErrForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 
-	case errors.Is(err, tradelivense.ErrInvalidStatusTransition),
-		errors.Is(err, tradelivense.ErrDocumentRequired),
-		errors.Is(err, tradelivense.ErrPaymentRequired):
+	case errors.Is(err, domainerrors.ErrInvalidStatusTransition),
+		errors.Is(err, domainerrors.ErrDocumentRequired),
+		errors.Is(err, domainerrors.ErrPaymentRequired):
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 
 	default:

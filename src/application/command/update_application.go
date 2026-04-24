@@ -3,7 +3,10 @@ package command
 import (
 	"context"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // UpdateApplicationCommand carries the fields a customer may change on a PENDING
@@ -28,11 +31,11 @@ type UpdateApplicationCommand struct {
 // All business invariants (valid status, doc count, payment presence) are
 // enforced by the domain aggregate, not here.
 type UpdateApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
 // NewUpdateApplicationHandler constructs the handler with its repository dependency.
-func NewUpdateApplicationHandler(repo tradelivense.ApplicationRepository) *UpdateApplicationHandler {
+func NewUpdateApplicationHandler(repo repositories.ApplicationRepository) *UpdateApplicationHandler {
 	return &UpdateApplicationHandler{repo: repo}
 }
 
@@ -47,9 +50,9 @@ func NewUpdateApplicationHandler(repo tradelivense.ApplicationRepository) *Updat
 // Returns the updated ApplicationDTO on success (populated by the HTTP handler
 // from a subsequent GetApplication query — this handler is write-only).
 func (h *UpdateApplicationHandler) Handle(ctx context.Context, cmd UpdateApplicationCommand) error {
-	id, err := tradelivense.ApplicationIDFrom(cmd.ApplicationID)
+	id, err := valueobjects.ApplicationIDFrom(cmd.ApplicationID)
 	if err != nil {
-		return tradelivense.ErrApplicationNotFound
+		return domainerrors.ErrApplicationNotFound
 	}
 
 	app, err := h.repo.FindByID(ctx, id)
@@ -58,13 +61,13 @@ func (h *UpdateApplicationHandler) Handle(ctx context.Context, cmd UpdateApplica
 	}
 
 	if app.ApplicantID != cmd.ApplicantID {
-		return tradelivense.ErrForbidden
+		return domainerrors.ErrForbidden
 	}
 
-	commodity := tradelivense.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
-	docs := make([]tradelivense.Document, 0, len(cmd.Documents))
+	commodity := models.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
+	docs := make([]models.Document, 0, len(cmd.Documents))
 	for _, d := range cmd.Documents {
-		docs = append(docs, tradelivense.NewDocument(d.Name, d.URL, d.ContentType))
+		docs = append(docs, models.NewDocument(d.Name, d.URL, d.ContentType))
 	}
 
 	if err := app.UpdateDetails(commodity, docs); err != nil {

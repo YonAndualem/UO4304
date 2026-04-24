@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // ReviewAction enumerates the decisions available to a Reviewer in Step 4.
@@ -30,10 +31,10 @@ type ReviewApplicationCommand struct {
 // keeping the switch-on-action logic here (orchestration) while the state
 // transition rules stay in the aggregate (business logic).
 type ReviewApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewReviewApplicationHandler(repo tradelivense.ApplicationRepository) *ReviewApplicationHandler {
+func NewReviewApplicationHandler(repo repositories.ApplicationRepository) *ReviewApplicationHandler {
 	return &ReviewApplicationHandler{repo: repo}
 }
 
@@ -41,7 +42,7 @@ func NewReviewApplicationHandler(repo tradelivense.ApplicationRepository) *Revie
 // based on the reviewer's chosen action. Each method enforces that the application
 // is in a valid state for that action (SUBMITTED or REREVIEW).
 func (h *ReviewApplicationHandler) Handle(ctx context.Context, cmd ReviewApplicationCommand) error {
-	appID, err := tradelivense.ApplicationIDFrom(cmd.ApplicationID)
+	appID, err := valueobjects.ApplicationIDFrom(cmd.ApplicationID)
 	if err != nil {
 		return err
 	}

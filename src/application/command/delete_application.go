@@ -3,7 +3,9 @@ package command
 import (
 	"context"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // DeleteApplicationCommand removes a PENDING, CANCELLED, or REJECTED application
@@ -14,17 +16,17 @@ type DeleteApplicationCommand struct {
 }
 
 type DeleteApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewDeleteApplicationHandler(repo tradelivense.ApplicationRepository) *DeleteApplicationHandler {
+func NewDeleteApplicationHandler(repo repositories.ApplicationRepository) *DeleteApplicationHandler {
 	return &DeleteApplicationHandler{repo: repo}
 }
 
 func (h *DeleteApplicationHandler) Handle(ctx context.Context, cmd DeleteApplicationCommand) error {
-	id, err := tradelivense.ApplicationIDFrom(cmd.ApplicationID)
+	id, err := valueobjects.ApplicationIDFrom(cmd.ApplicationID)
 	if err != nil {
-		return tradelivense.ErrApplicationNotFound
+		return domainerrors.ErrApplicationNotFound
 	}
 
 	app, err := h.repo.FindByID(ctx, id)
@@ -33,7 +35,7 @@ func (h *DeleteApplicationHandler) Handle(ctx context.Context, cmd DeleteApplica
 	}
 
 	if app.ApplicantID != cmd.ApplicantID {
-		return tradelivense.ErrForbidden
+		return domainerrors.ErrForbidden
 	}
 
 	if err := app.Delete(); err != nil {

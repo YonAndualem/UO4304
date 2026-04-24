@@ -7,7 +7,10 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	domain "github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/infrastructure/persistence/postgres/models"
 )
 
@@ -15,12 +18,12 @@ type applicationRepository struct {
 	db *gorm.DB
 }
 
-func NewApplicationRepository(db *gorm.DB) tradelivense.ApplicationRepository {
+func NewApplicationRepository(db *gorm.DB) repositories.ApplicationRepository {
 	return &applicationRepository{db: db}
 }
 
 // Save persists a new application and its initial history entries.
-func (r *applicationRepository) Save(ctx context.Context, app *tradelivense.TradeLicenseApplication) error {
+func (r *applicationRepository) Save(ctx context.Context, app *domain.TradeLicenseApplication) error {
 	m := toModel(app)
 	return r.db.WithContext(ctx).Create(m).Error
 }
@@ -28,7 +31,7 @@ func (r *applicationRepository) Save(ctx context.Context, app *tradelivense.Trad
 // Update persists the current aggregate state inside a single transaction:
 // - saves the root record and associations
 // - upserts any new history entries (ON CONFLICT DO NOTHING keeps it append-only)
-func (r *applicationRepository) Update(ctx context.Context, app *tradelivense.TradeLicenseApplication) error {
+func (r *applicationRepository) Update(ctx context.Context, app *domain.TradeLicenseApplication) error {
 	m := toModel(app)
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -71,7 +74,7 @@ func (r *applicationRepository) Update(ctx context.Context, app *tradelivense.Tr
 }
 
 // FindByID loads an application with all associations including history.
-func (r *applicationRepository) FindByID(ctx context.Context, id tradelivense.ApplicationID) (*tradelivense.TradeLicenseApplication, error) {
+func (r *applicationRepository) FindByID(ctx context.Context, id valueobjects.ApplicationID) (*domain.TradeLicenseApplication, error) {
 	var m models.Application
 	err := r.db.WithContext(ctx).
 		Preload("Commodity").
@@ -83,7 +86,7 @@ func (r *applicationRepository) FindByID(ctx context.Context, id tradelivense.Ap
 		First(&m, "id = ?", id.String()).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, tradelivense.ErrApplicationNotFound
+		return nil, domainerrors.ErrApplicationNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -93,7 +96,7 @@ func (r *applicationRepository) FindByID(ctx context.Context, id tradelivense.Ap
 
 // FindByApplicantID returns all non-deleted applications for a customer,
 // newest first, with full history.
-func (r *applicationRepository) FindByApplicantID(ctx context.Context, applicantID string) ([]*tradelivense.TradeLicenseApplication, error) {
+func (r *applicationRepository) FindByApplicantID(ctx context.Context, applicantID string) ([]*domain.TradeLicenseApplication, error) {
 	var ms []models.Application
 	err := r.db.WithContext(ctx).
 		Preload("Commodity").
@@ -112,7 +115,7 @@ func (r *applicationRepository) FindByApplicantID(ctx context.Context, applicant
 }
 
 // FindByStatus returns applications in the given status for reviewer/approver queues.
-func (r *applicationRepository) FindByStatus(ctx context.Context, status tradelivense.ApplicationStatus) ([]*tradelivense.TradeLicenseApplication, error) {
+func (r *applicationRepository) FindByStatus(ctx context.Context, status valueobjects.ApplicationStatus) ([]*domain.TradeLicenseApplication, error) {
 	var ms []models.Application
 	err := r.db.WithContext(ctx).
 		Preload("Commodity").
@@ -131,14 +134,14 @@ func (r *applicationRepository) FindByStatus(ctx context.Context, status tradeli
 }
 
 // Delete soft-deletes the application record (GORM sets deleted_at).
-func (r *applicationRepository) Delete(ctx context.Context, id tradelivense.ApplicationID) error {
+func (r *applicationRepository) Delete(ctx context.Context, id valueobjects.ApplicationID) error {
 	return r.db.WithContext(ctx).
 		Where("id = ?", id.String()).
 		Delete(&models.Application{}).Error
 }
 
-func toDomainSlice(ms []models.Application) ([]*tradelivense.TradeLicenseApplication, error) {
-	apps := make([]*tradelivense.TradeLicenseApplication, 0, len(ms))
+func toDomainSlice(ms []models.Application) ([]*domain.TradeLicenseApplication, error) {
+	apps := make([]*domain.TradeLicenseApplication, 0, len(ms))
 	for i := range ms {
 		app, err := toDomain(&ms[i])
 		if err != nil {

@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/enterprise/trade-license/src/application/command"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/testutil"
 )
 
@@ -40,9 +41,9 @@ func TestApproveApplicationHandler_Approve(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusApproved {
+	if app.Status != valueobjects.StatusApproved {
 		t.Errorf("expected APPROVED, got %s", app.Status)
 	}
 }
@@ -62,9 +63,9 @@ func TestApproveApplicationHandler_Reject(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusRejected {
+	if app.Status != valueobjects.StatusRejected {
 		t.Errorf("expected REJECTED, got %s", app.Status)
 	}
 }
@@ -84,9 +85,9 @@ func TestApproveApplicationHandler_Rereview(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusRereview {
+	if app.Status != valueobjects.StatusRereview {
 		t.Errorf("expected REREVIEW, got %s", app.Status)
 	}
 }
@@ -102,7 +103,7 @@ func TestApproveApplicationHandler_FailsFromSubmitted(t *testing.T) {
 		ApproverID:    "approver-1",
 		Action:        command.ApproveActionApprove,
 	})
-	if err != tradelivense.ErrInvalidStatusTransition {
+	if err != domainerrors.ErrInvalidStatusTransition {
 		t.Errorf("expected ErrInvalidStatusTransition, got %v", err)
 	}
 }

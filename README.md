@@ -140,8 +140,8 @@ a `ApplicationRepository` interface; the infrastructure layer provides the actua
 PostgreSQL implementation. The domain never imports the infrastructure package.
 
 **Bounded Context** — A logical boundary within which a specific domain model
-applies. This system's bounded context is `tradelivense` — all domain types live
-inside this package.
+applies. This system's bounded context is the Trade License domain represented
+under `src/domain/` (`models`, `valueobjects`, `events`, `errors`, `repositories`).
 
 ### 2.3 How They Work Together
 
@@ -151,7 +151,7 @@ protected from technical details.
 
 Together, the result is:
 
-- Business rules live in `src/domain/tradelivense/aggregate.go`. They are pure Go.
+- Business rules live in `src/domain/models/models.go`. They are pure Go.
   No imports from Fiber, GORM, or any external library.
 - Orchestration (loading, saving, calling domain methods) lives in `src/application/`.
 - HTTP translation lives in `src/presentation/`.
@@ -214,12 +214,15 @@ UO4304/
 │   │   ├── common/
 │   │   │   ├── aggregate_root.go    # Base type for aggregate roots (event management)
 │   │   │   └── domain_event.go      # DomainEvent interface + BaseDomainEvent
-│   │   └── tradelivense/            # The Trade License bounded context
-│   │       ├── aggregate.go         # TradeLicenseApplication — all business rules
-│   │       ├── entities.go          # Commodity, Document, Payment, HistoryEntry
-│   │       ├── value_objects.go     # ApplicationID, LicenseType, ApplicationStatus
-│   │       ├── events.go            # Domain events (Submitted, Accepted, etc.)
-│   │       ├── repository.go        # ApplicationRepository interface (the port)
+│   │   ├── models/
+│   │   │   └── models.go            # TradeLicenseApplication + entities + workflow methods
+│   │   ├── valueobjects/
+│   │   │   └── value_objects.go     # ApplicationID, LicenseType, ApplicationStatus
+│   │   ├── events/
+│   │   │   └── events.go            # Domain events (Submitted, Accepted, etc.)
+│   │   ├── repositories/
+│   │   │   └── repository.go        # ApplicationRepository interface (the port)
+│   │   └── errors/
 │   │       └── errors.go            # Domain error sentinels
 │   │
 │   ├── application/
@@ -237,14 +240,17 @@ UO4304/
 │   │       └── get_application.go   # GetApplication, ListByStatus, ListByApplicant + DTOs
 │   │
 │   ├── infrastructure/
-│   │   └── persistence/
-│   │       └── postgres/
-│   │           ├── db.go            # Opens DB connection and runs AutoMigrate
-│   │           ├── mapper.go        # Converts between domain objects ↔ GORM models
-│   │           ├── repository.go    # ApplicationRepository implementation (GORM)
-│   │           ├── user_repository.go  # UserRepository implementation (GORM)
-│   │           └── models/
-│   │               └── models.go    # GORM-annotated table structs (incl. User)
+│   │   ├── persistence/
+│   │   │   └── postgres/
+│   │   │       ├── db.go            # Opens DB connection and runs AutoMigrate
+│   │   │       ├── mapper.go        # Converts between domain objects ↔ GORM models
+│   │   │       ├── repository.go    # ApplicationRepository implementation (GORM)
+│   │   │       ├── user_repository.go  # UserRepository implementation (GORM)
+│   │   │       └── models/
+│   │   │           └── models.go    # GORM-annotated table structs (incl. User)
+│   │   └── storage/
+│   │       └── minio/
+│   │           └── storage.go       # Object storage adapter for uploads and previews
 │   │
 │   ├── presentation/
 │   │   └── http/
@@ -313,19 +319,18 @@ read only this layer, you understand exactly what the business does.
 
 ### 4.1 Bounded Context
 
-**File:** `src/domain/tradelivense/`
+**Files:** `src/domain/models/models.go`, `src/domain/valueobjects/value_objects.go`, `src/domain/events/events.go`, `src/domain/repositories/repository.go`, `src/domain/errors/errors.go`
 
-The package name `tradelivense` is a deliberately coined term for the
-**Trade License** bounded context. Bounded contexts prevent naming collisions
-between different parts of a large enterprise system — in a multi-service
-architecture you might have a `billing` context, an `identity` context, and a
-`tradelivense` context, each with its own definition of "application" or "user".
+The Trade License bounded context is organized into focused packages under `src/domain/`.
+Bounded contexts prevent naming collisions between different parts of a large enterprise
+system — in a multi-service architecture you might have a `billing` context, an `identity`
+context, and a trade-license context, each with its own definition of "application" or "user".
 
-Everything that defines what a Trade License application *is* lives inside this package.
+Everything that defines what a Trade License application *is* lives in these domain packages.
 
 ### 4.2 Aggregate Root
 
-**File:** `src/domain/tradelivense/aggregate.go`
+**File:** `src/domain/models/models.go`
 
 `TradeLicenseApplication` is the aggregate root. It is the central object in the
 system — all other domain objects (`Commodity`, `Document`, `Payment`, `HistoryEntry`)
@@ -370,7 +375,7 @@ private `addHistory()` helper, creating a complete append-only audit trail.
 
 ### 4.3 Entities
 
-**File:** `src/domain/tradelivense/entities.go`
+**File:** `src/domain/models/models.go`
 
 Entities are domain objects that have identity (an ID) and may change over time.
 
@@ -397,7 +402,7 @@ entries are never modified or deleted.
 
 ### 4.4 Value Objects
 
-**File:** `src/domain/tradelivense/value_objects.go`
+**File:** `src/domain/valueobjects/value_objects.go`
 
 Value objects are defined entirely by their value. Two instances with the same
 data are considered identical. They are immutable — once created, they cannot change.
@@ -418,7 +423,7 @@ one entry to the map — no other code changes.
 
 ### 4.5 Domain Events
 
-**File:** `src/domain/tradelivense/events.go`
+**File:** `src/domain/events/events.go`
 
 Domain events record facts about things that happened. They are raised inside
 aggregate methods and collected by `AggregateRoot.AddEvent()`. After the
@@ -442,7 +447,7 @@ a notification service to send a congratulations email without querying the data
 
 ### 4.6 Repository Interface (Port)
 
-**File:** `src/domain/tradelivense/repository.go`
+**File:** `src/domain/repositories/repository.go`
 
 ```go
 type ApplicationRepository interface {
@@ -464,7 +469,7 @@ can supply a `MockRepository` that satisfies this interface.
 
 ### 4.7 Error Sentinels
 
-**File:** `src/domain/tradelivense/errors.go`
+**File:** `src/domain/errors/errors.go`
 
 Domain errors are package-level `var` declarations using `errors.New()`. This
 pattern is called "error sentinels".
@@ -686,8 +691,8 @@ Parses and validates the JWT signature and expiry. Returns the claims or an erro
 **Location:** `src/infrastructure/`
 
 The infrastructure layer contains everything that talks to the outside world:
-databases, file systems, external APIs. In this project, that means PostgreSQL
-via GORM.
+databases, object storage, file systems, external APIs. In this project, that means
+PostgreSQL via GORM and MinIO for document storage.
 
 This layer **implements** the domain's `ApplicationRepository` interface. The domain
 knows nothing about GORM or PostgreSQL — it only knows the interface. The
@@ -765,7 +770,7 @@ translates between these two representations so neither layer has to know about 
 
 **File:** `src/infrastructure/persistence/postgres/repository.go`
 
-`applicationRepository` implements `tradelivense.ApplicationRepository` using GORM.
+`applicationRepository` implements `repositories.ApplicationRepository` using GORM.
 
 **`Save(ctx, app)`** — Creates a new application row and all associations in a single
 GORM `Create` call.
@@ -832,8 +837,9 @@ It does **not** know about:
 
 **`JWTAuth(svc *auth.Service) fiber.Handler`**
 
-Validates every request to protected routes. Reads the `Authorization: Bearer <token>`
-header, calls `svc.ValidateToken()`, and if valid, stores the extracted claims in
+Validates every request to protected routes. Reads either the
+`Authorization: Bearer <token>` header or `?token=<jwt>` query parameter,
+calls `svc.ValidateToken()`, and if valid, stores the extracted claims in
 Fiber locals (`c.Locals("userID", ...)`, `c.Locals("role", ...)`). Returns 401
 for missing, malformed, expired, or tampered tokens.
 
@@ -887,6 +893,20 @@ All endpoints accessible to the `CUSTOMER` role:
 | `POST` | `/api/customer/applications/:id/cancel` | Cancel PENDING or ADJUSTED |
 | `DELETE` | `/api/customer/applications/:id` | Soft-delete PENDING/CANCELLED/REJECTED |
 
+Customer routes also include document upload:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/customer/upload` | Upload a document to MinIO and return the storage key plus file metadata |
+
+**`upload_handler.go`** — `UploadHandler`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/documents/view?key=...` | Stream document bytes for preview (authenticated) |
+
+This handler is shared across roles for secure document preview flows.
+
 For `PUT` and `POST .../resubmit`, the `payment` field in the request body is
 optional. If omitted, the existing payment is preserved. If present, the payment
 is re-settled via `ReplacePayment()`.
@@ -916,6 +936,7 @@ is re-settled via `ReplacePayment()`.
 - `logger.New()` — logs every request and response for observability.
 - `GET /health` — no-auth health check for container probes.
 - `POST /api/auth/register` and `POST /api/auth/login` — public, no JWT required.
+- `GET /api/documents/view` — authenticated document streaming endpoint.
 - Three role-scoped route groups, each protected first by `JWTAuth(authSvc)` then
   by `RequireRole(...)` middleware. Only requests with a valid JWT carrying the
   correct role can reach the handlers.
@@ -1036,7 +1057,7 @@ status (the customer needs to take action).
 
 Form matching the use-case steps:
 - Step 1 card: commodity name, category, description.
-- Step 2 card: document name, URL (validated for http/https), content type.
+- Step 2 card: `DocumentUpload` component (drag/drop or click upload), preview modal, replace action.
 - Step 3 card: payment amount, currency, transaction ID (auto-generated UUID, regeneratable).
 
 **`app/customer/applications/[id]/page.tsx`** — Application Detail
@@ -1057,6 +1078,8 @@ When ADJUSTED, the reviewer's notes are shown in a prominent orange warning box.
 Pre-fills all three steps from the current application data. Payment section has
 a toggle: "Update payment" is off by default (shows current payment as read-only).
 Toggling it on reveals editable amount/currency/transaction ID fields.
+
+Document editing uses `DocumentUpload` with preview support rather than manual URL entry.
 
 When accessed with `?resubmit=1`, the form submits to the `POST .../resubmit`
 endpoint instead of `PUT .../:id`, and the button label changes to "Submit for Review."
@@ -1090,8 +1113,8 @@ ADJUSTED applications get an orange border and "⚠ Action required" label.
 
 **`components/AppDetail.tsx`** — Full application detail view.
 Sections: header (ID, license type, applicant, status badge), workflow timeline,
-reviewer notes (when present), commodity, documents (with safe link rendering —
-only http/https URLs are rendered as `<a>` tags), payment, audit trail history,
+reviewer notes (when present), commodity, documents (preview button opens
+`DocumentPreviewModal`), payment, audit trail history,
 timestamps.
 
 The **Audit Trail** section renders a vertical timeline of every `HistoryEntry`,
@@ -1140,6 +1163,15 @@ with an action link pointing to the relevant demo scenario.
 These are copied and owned by the project (not imported from a CDN) so you can
 customize them freely.
 
+**`components/DocumentUpload.tsx`** — Upload/drop zone for supported document types,
+integrated with `/api/customer/upload`, with inline preview and replace controls.
+
+**`components/DocumentPreviewModal.tsx`** — Full-screen preview modal that fetches
+document content from the backend and renders image/PDF previews.
+
+**`components/PdfPreview.tsx`** — Isolated `react-pdf` renderer. Uses a version-matched
+worker from `pdfjs-dist` via `new URL(..., import.meta.url)` to prevent API/worker mismatch.
+
 ### 9.5 API Client
 
 **File:** `frontend/lib/api.ts`
@@ -1170,6 +1202,10 @@ Four API namespaces:
 **`reviewerApi`** — `list`, `get`, `takeAction`
 
 **`approverApi`** — `list`, `get`, `takeAction`
+
+**`storageApi`**
+- `upload(identity, file)` — `POST /api/customer/upload` multipart upload.
+- Returns `{ key, name, content_type }` used by submit/update payloads.
 
 ### 9.6 Type Definitions
 
@@ -1342,7 +1378,7 @@ Body:
 {
   "license_type": "TRADE_LICENSE",
   "commodity": { "name": "...", "description": "...", "category": "..." },
-  "documents": [{ "name": "...", "url": "https://...", "content_type": "..." }],
+   "documents": [{ "name": "...", "url": "documents/<object-key>", "content_type": "..." }],
   "payment": { "amount": 500.00, "currency": "USD", "transaction_id": "TXN-..." }
 }
 → 201 { "application_id": "<uuid>" }
@@ -1369,7 +1405,7 @@ PUT /api/customer/applications/:id
 Body:
 {
   "commodity": { "name": "...", "description": "...", "category": "..." },
-  "documents": [{ "name": "...", "url": "https://...", "content_type": "..." }],
+   "documents": [{ "name": "...", "url": "documents/<object-key>", "content_type": "..." }],
   "payment": { "amount": 600.00, "currency": "USD", "transaction_id": "TXN-..." }  // optional
 }
 → 200 ApplicationDTO
@@ -1425,6 +1461,23 @@ Body: { "action": "ACCEPT" | "REJECT" | "ADJUST", "notes": "..." }
 Notes required for REJECT and ADJUST.
 → 204 No Content
 → 422 if invalid status transition
+```
+
+### Document Endpoints
+
+**Upload Document**
+```
+POST /api/customer/upload
+Content-Type: multipart/form-data
+Field: file
+→ 200 { "key": "documents/<object-key>", "name": "<original-filename>", "content_type": "application/pdf|image/*" }
+```
+
+**View/Stream Document**
+```
+GET /api/documents/view?key=documents/<object-key>
+Authorization: Bearer <token>   // or ?token=<jwt>
+→ 200 binary stream with Content-Type and inline disposition
 ```
 
 ### Approver Endpoints
@@ -1552,7 +1605,13 @@ provided for local development.
 | `DB_PASSWORD` | `postgres` | PostgreSQL password |
 | `DB_NAME` | `trade_license` | PostgreSQL database name |
 | `DB_SSL_MODE` | `disable` | SSL mode (set to `require` in production) |
-| `JWT_SECRET` | `dev-secret` | HMAC-SHA256 signing key for JWT tokens. **Must be changed in production.** |
+| `JWT_SECRET` | `change-me-in-production` | HMAC-SHA256 signing key for JWT tokens. **Must be changed in production.** |
+| `MINIO_ENDPOINT` | `minio:9000` | MinIO service endpoint used by backend |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key |
+| `MINIO_BUCKET` | `trade-license` | Bucket name for uploaded documents |
+| `MINIO_USE_SSL` | `false` | Use TLS when connecting to MinIO |
+| `MINIO_PUBLIC_ENDPOINT` | `localhost:9000` | Public MinIO endpoint used by frontend integration and CSP configuration |
 
 ---
 
@@ -1568,8 +1627,9 @@ provided for local development.
 docker compose up --build -d
 ```
 
-This starts three containers:
+This starts four containers:
 - `postgres` — PostgreSQL 16
+- `minio` — object storage for document upload/preview
 - `app` — Go backend on port 8080
 - `frontend` — Next.js frontend on port 3000
 
@@ -1593,6 +1653,8 @@ states so you can immediately explore every part of the UI.
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8080 |
 | Health check | http://localhost:8080/health |
+| MinIO API | http://localhost:9000 |
+| MinIO Console | http://localhost:9001 |
 
 ### Rebuild after code changes
 
@@ -1616,7 +1678,7 @@ go test ./...
 ### Run a specific test
 
 ```bash
-go test ./src/domain/tradelivense/ -v -run TestTradeLicenseApplication
+go test ./src/domain/models/ -v -run TestTradeLicenseApplication
 ```
 
 ---
@@ -1655,7 +1717,7 @@ The `testutil.MockRepository` provides an in-memory implementation of
 
 Key test files:
 
-- `src/domain/tradelivense/aggregate_test.go` — tests every state transition on
+- `src/domain/models/aggregate_test.go` — tests every state transition on
   the aggregate, including happy paths, invalid transition attempts, and domain
   event emissions.
 
@@ -1712,9 +1774,9 @@ forcing users to log in again.
 layers regardless of how the caller authenticated. A valid JWT grants access to
 the route group — it does not bypass application-level authorization.
 
-**Document URL validation.** The frontend validates that document URLs start with
-`http://` or `https://` before rendering them as links, preventing `javascript:`
-URL injection attacks in the document viewer.
+**Document streaming and preview safety.** Uploaded documents are referenced by
+storage keys and streamed through authenticated backend endpoints. The browser
+never executes user-provided URLs directly in preview components.
 
 **UUID-based IDs.** All primary keys are UUIDs. This prevents attackers from
 enumerating resources by guessing sequential integer IDs.

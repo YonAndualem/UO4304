@@ -3,7 +3,10 @@ package command
 import (
 	"context"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // ResubmitApplicationCommand carries the updated commodity, documents, and
@@ -26,11 +29,11 @@ type ResubmitApplicationCommand struct {
 // This is the closing step of the ADJUSTED cycle: the customer has addressed
 // the reviewer's notes and wants to put the application back in the review queue.
 type ResubmitApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
 // NewResubmitApplicationHandler constructs the handler with its repository dependency.
-func NewResubmitApplicationHandler(repo tradelivense.ApplicationRepository) *ResubmitApplicationHandler {
+func NewResubmitApplicationHandler(repo repositories.ApplicationRepository) *ResubmitApplicationHandler {
 	return &ResubmitApplicationHandler{repo: repo}
 }
 
@@ -43,9 +46,9 @@ func NewResubmitApplicationHandler(repo tradelivense.ApplicationRepository) *Res
 //  6. Call Resubmit() — transitions ADJUSTED → SUBMITTED and archives reviewer notes.
 //  7. Persist the aggregate.
 func (h *ResubmitApplicationHandler) Handle(ctx context.Context, cmd ResubmitApplicationCommand) error {
-	id, err := tradelivense.ApplicationIDFrom(cmd.ApplicationID)
+	id, err := valueobjects.ApplicationIDFrom(cmd.ApplicationID)
 	if err != nil {
-		return tradelivense.ErrApplicationNotFound
+		return domainerrors.ErrApplicationNotFound
 	}
 
 	app, err := h.repo.FindByID(ctx, id)
@@ -54,13 +57,13 @@ func (h *ResubmitApplicationHandler) Handle(ctx context.Context, cmd ResubmitApp
 	}
 
 	if app.ApplicantID != cmd.ApplicantID {
-		return tradelivense.ErrForbidden
+		return domainerrors.ErrForbidden
 	}
 
-	commodity := tradelivense.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
-	docs := make([]tradelivense.Document, 0, len(cmd.Documents))
+	commodity := models.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
+	docs := make([]models.Document, 0, len(cmd.Documents))
 	for _, d := range cmd.Documents {
-		docs = append(docs, tradelivense.NewDocument(d.Name, d.URL, d.ContentType))
+		docs = append(docs, models.NewDocument(d.Name, d.URL, d.ContentType))
 	}
 
 	if err := app.UpdateDetails(commodity, docs); err != nil {

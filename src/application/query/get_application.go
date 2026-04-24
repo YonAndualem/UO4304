@@ -10,7 +10,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // ApplicationDTO is the read model (view model) returned to API consumers.
@@ -69,15 +71,15 @@ type PaymentDTO struct {
 // GetApplicationHandler retrieves a single application by ID.
 // Used by all three roles to view application details (Steps 1–3 in each workflow).
 type GetApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewGetApplicationHandler(repo tradelivense.ApplicationRepository) *GetApplicationHandler {
+func NewGetApplicationHandler(repo repositories.ApplicationRepository) *GetApplicationHandler {
 	return &GetApplicationHandler{repo: repo}
 }
 
 func (h *GetApplicationHandler) Handle(ctx context.Context, applicationID string) (*ApplicationDTO, error) {
-	appID, err := tradelivense.ApplicationIDFrom(applicationID)
+	appID, err := valueobjects.ApplicationIDFrom(applicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +98,15 @@ func (h *GetApplicationHandler) Handle(ctx context.Context, applicationID string
 // Reviewers use this to list SUBMITTED|REREVIEW applications; approvers use it
 // for ACCEPTED applications.
 type ListByStatusHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewListByStatusHandler(repo tradelivense.ApplicationRepository) *ListByStatusHandler {
+func NewListByStatusHandler(repo repositories.ApplicationRepository) *ListByStatusHandler {
 	return &ListByStatusHandler{repo: repo}
 }
 
 func (h *ListByStatusHandler) Handle(ctx context.Context, status string) ([]*ApplicationDTO, error) {
-	apps, err := h.repo.FindByStatus(ctx, tradelivense.ApplicationStatus(status))
+	apps, err := h.repo.FindByStatus(ctx, valueobjects.ApplicationStatus(status))
 	if err != nil {
 		return nil, err
 	}
@@ -120,10 +122,10 @@ func (h *ListByStatusHandler) Handle(ctx context.Context, status string) ([]*App
 
 // ListByApplicantHandler returns all applications submitted by a specific customer.
 type ListByApplicantHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewListByApplicantHandler(repo tradelivense.ApplicationRepository) *ListByApplicantHandler {
+func NewListByApplicantHandler(repo repositories.ApplicationRepository) *ListByApplicantHandler {
 	return &ListByApplicantHandler{repo: repo}
 }
 
@@ -144,7 +146,7 @@ func (h *ListByApplicantHandler) Handle(ctx context.Context, applicantID string)
 
 // toDTO converts a domain aggregate into a flat, JSON-serialisable DTO.
 // This mapping is the boundary between the domain model and the API contract.
-func toDTO(app *tradelivense.TradeLicenseApplication) *ApplicationDTO {
+func toDTO(app *models.TradeLicenseApplication) *ApplicationDTO {
 	history := make([]HistoryEntryDTO, 0, len(app.History))
 	for _, h := range app.History {
 		history = append(history, HistoryEntryDTO{

@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/enterprise/trade-license/src/application/command"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/testutil"
 )
 
@@ -18,7 +19,7 @@ func TestSubmitApplicationHandler_HappyPath(t *testing.T) {
 
 	cmd := command.SubmitApplicationCommand{
 		ApplicantID: "customer-1",
-		LicenseType: tradelivense.TradeLicense,
+		LicenseType: valueobjects.TradeLicense,
 		Commodity: command.CommodityInput{
 			Name:        "General Trading",
 			Description: "Import and export of consumer goods",
@@ -43,12 +44,12 @@ func TestSubmitApplicationHandler_HappyPath(t *testing.T) {
 	}
 
 	// Verify the application was persisted with SUBMITTED status
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, err := repo.FindByID(context.Background(), appID)
 	if err != nil {
 		t.Fatalf("expected application to be persisted: %v", err)
 	}
-	if app.Status != tradelivense.StatusSubmitted {
+	if app.Status != valueobjects.StatusSubmitted {
 		t.Errorf("expected SUBMITTED, got %s", app.Status)
 	}
 }
@@ -76,13 +77,13 @@ func TestSubmitApplicationHandler_MissingDocuments(t *testing.T) {
 
 	cmd := command.SubmitApplicationCommand{
 		ApplicantID: "customer-1",
-		LicenseType: tradelivense.TradeLicense,
+		LicenseType: valueobjects.TradeLicense,
 		Documents:   []command.DocumentInput{}, // Empty — should fail
 		Payment:     command.PaymentInput{Amount: 500, Currency: "USD", TransactionID: "TXN-003"},
 	}
 
 	_, err := handler.Handle(context.Background(), cmd)
-	if err != tradelivense.ErrDocumentRequired {
+	if err != domainerrors.ErrDocumentRequired {
 		t.Errorf("expected ErrDocumentRequired, got %v", err)
 	}
 }

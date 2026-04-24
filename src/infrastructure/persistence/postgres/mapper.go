@@ -1,11 +1,13 @@
 package postgres
 
 import (
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domain "github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
+
 	"github.com/enterprise/trade-license/src/infrastructure/persistence/postgres/models"
 )
 
-func toModel(app *tradelivense.TradeLicenseApplication) *models.Application {
+func toModel(app *domain.TradeLicenseApplication) *models.Application {
 	m := &models.Application{
 		ID:          app.ID.String(),
 		LicenseType: app.LicenseType.String(),
@@ -65,57 +67,57 @@ func toModel(app *tradelivense.TradeLicenseApplication) *models.Application {
 	return m
 }
 
-func toDomain(m *models.Application) (*tradelivense.TradeLicenseApplication, error) {
-	appID, err := tradelivense.ApplicationIDFrom(m.ID)
+func toDomain(m *models.Application) (*domain.TradeLicenseApplication, error) {
+	appID, err := valueobjects.ApplicationIDFrom(m.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	licenseType, err := tradelivense.NewLicenseType(m.LicenseType)
+	licenseType, err := valueobjects.NewLicenseType(m.LicenseType)
 	if err != nil {
 		return nil, err
 	}
 
-	app := &tradelivense.TradeLicenseApplication{
+	app := &domain.TradeLicenseApplication{
 		ID:          appID,
 		LicenseType: licenseType,
 		ApplicantID: m.ApplicantID,
-		Status:      tradelivense.ApplicationStatus(m.Status),
+		Status:      valueobjects.ApplicationStatus(m.Status),
 		Notes:       m.Notes,
-		Documents:   make([]tradelivense.Document, 0, len(m.Documents)),
-		History:     make([]tradelivense.HistoryEntry, 0, len(m.History)),
+		Documents:   make([]domain.Document, 0, len(m.Documents)),
+		History:     make([]domain.HistoryEntry, 0, len(m.History)),
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
 	}
 
 	if m.Commodity != nil {
-		c := tradelivense.NewCommodity(m.Commodity.Name, m.Commodity.Description, m.Commodity.Category)
+		c := domain.NewCommodity(m.Commodity.Name, m.Commodity.Description, m.Commodity.Category)
 		c.ID = m.Commodity.ID
 		app.Commodity = &c
 	}
 
 	for _, d := range m.Documents {
-		doc := tradelivense.NewDocument(d.Name, d.URL, d.ContentType)
+		doc := domain.NewDocument(d.Name, d.URL, d.ContentType)
 		doc.ID = d.ID
 		doc.UploadedAt = d.UploadedAt
 		app.Documents = append(app.Documents, doc)
 	}
 
 	if m.Payment != nil {
-		p := tradelivense.NewPayment(m.Payment.Amount, m.Payment.Currency, m.Payment.TransactionID)
+		p := domain.NewPayment(m.Payment.Amount, m.Payment.Currency, m.Payment.TransactionID)
 		p.ID = m.Payment.ID
 		p.PaidAt = m.Payment.PaidAt
-		p.Status = tradelivense.PaymentStatus(m.Payment.Status)
+		p.Status = domain.PaymentStatus(m.Payment.Status)
 		app.Payment = &p
 	}
 
 	for _, h := range m.History {
-		app.History = append(app.History, tradelivense.HistoryEntry{
+		app.History = append(app.History, domain.HistoryEntry{
 			ID:         h.ID,
 			ActorID:    h.ActorID,
 			Action:     h.Action,
-			FromStatus: tradelivense.ApplicationStatus(h.FromStatus),
-			ToStatus:   tradelivense.ApplicationStatus(h.ToStatus),
+			FromStatus: valueobjects.ApplicationStatus(h.FromStatus),
+			ToStatus:   valueobjects.ApplicationStatus(h.ToStatus),
 			Notes:      h.Notes,
 			OccurredAt: h.OccurredAt,
 		})

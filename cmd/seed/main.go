@@ -21,7 +21,8 @@ import (
 
 	"github.com/enterprise/trade-license/src/application/auth"
 	"github.com/enterprise/trade-license/src/config"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	postgresrepo "github.com/enterprise/trade-license/src/infrastructure/persistence/postgres"
 )
 
@@ -181,10 +182,10 @@ func main() {
 }
 
 // buildBase creates a PENDING application with commodity but no documents or payment.
-func buildBase(applicantID string) *tradelivense.TradeLicenseApplication {
-	lt, _ := tradelivense.NewLicenseType(tradelivense.TradeLicense)
-	app := tradelivense.NewTradeLicenseApplication(applicantID, lt)
-	app.SelectCommodity(tradelivense.NewCommodity("General Trading", "Import and export of consumer goods", "Commerce"))
+func buildBase(applicantID string) *models.TradeLicenseApplication {
+	lt, _ := valueobjects.NewLicenseType(valueobjects.TradeLicense)
+	app := models.NewTradeLicenseApplication(applicantID, lt)
+	app.SelectCommodity(models.NewCommodity("General Trading", "Import and export of consumer goods", "Commerce"))
 	return app
 }
 
@@ -192,19 +193,19 @@ func buildBase(applicantID string) *tradelivense.TradeLicenseApplication {
 // so that Submit() will succeed immediately.
 // A UUID-based transaction ID is used so re-running the seed never violates
 // the unique constraint on payments.transaction_id.
-func buildReady(applicantID string) *tradelivense.TradeLicenseApplication {
+func buildReady(applicantID string) *models.TradeLicenseApplication {
 	app := buildBase(applicantID)
-	app.AttachDocument(tradelivense.NewDocument(
+	app.AttachDocument(models.NewDocument(
 		"Passport Copy",
 		fmt.Sprintf("https://storage.example.com/seed/%s/passport.pdf", applicantID),
 		"application/pdf",
 	))
-	app.AttachDocument(tradelivense.NewDocument(
+	app.AttachDocument(models.NewDocument(
 		"Business Registration",
 		fmt.Sprintf("https://storage.example.com/seed/%s/business-reg.pdf", applicantID),
 		"application/pdf",
 	))
-	app.SettlePayment(tradelivense.NewPayment(
+	app.SettlePayment(models.NewPayment(
 		500.00,
 		"USD",
 		"TXN-"+uuid.New().String(), // unique per run — prevents duplicate key on re-seed

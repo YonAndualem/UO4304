@@ -20,6 +20,12 @@ type Config struct {
 	DBName     string
 	DBSSLMode  string
 	JWTSecret  string
+
+	MinIOEndpoint  string
+	MinIOAccessKey string
+	MinIOSecretKey string
+	MinIOBucket    string
+	MinIOUseSSL    bool
 }
 
 // Load reads configuration from environment variables, falling back to safe
@@ -34,6 +40,12 @@ func Load() *Config {
 		DBName:     getEnv("DB_NAME", "trade_license"),
 		DBSSLMode:  getEnv("DB_SSL_MODE", "disable"),
 		JWTSecret:  getEnv("JWT_SECRET", "change-me-in-production"),
+
+		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
+		MinIOAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinIOSecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinIOBucket:    getEnv("MINIO_BUCKET", "trade-license"),
+		MinIOUseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 	}
 }
 

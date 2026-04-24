@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DocumentUpload, type UploadedDoc } from "@/components/DocumentUpload";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { customerApi, ApiResponseError } from "@/lib/api";
 import type { ApplicationDTO } from "@/lib/types";
@@ -21,20 +22,13 @@ export default function EditApplicationPage() {
   const [original, setOriginal] = useState<ApplicationDTO | null>(null);
   const [loadError, setLoadError] = useState("");
 
-  // Commodity fields (Step 1)
   const [commodity, setCommodity] = useState({ name: "", description: "", category: "" });
-
-  // Document fields (Step 2) — single document for simplicity; extend for multi-doc
-  const [doc, setDoc] = useState({ name: "", url: "", content_type: "application/pdf" });
-
-  // Payment fields (Step 3) — optional: user can choose to update or keep existing
+  const [doc, setDoc] = useState<UploadedDoc | null>(null);
   const [updatePayment, setUpdatePayment] = useState(false);
   const [payment, setPayment] = useState({ amount: "", currency: "USD", transaction_id: "" });
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Generate a fresh transaction ID on the client side only to avoid SSR mismatch.
   useEffect(() => {
     setPayment(p => ({
       ...p,
@@ -42,55 +36,32 @@ export default function EditApplicationPage() {
     }));
   }, []);
 
-  // Load the existing application and pre-fill the form fields.
   useEffect(() => {
     if (!identity) { router.replace("/"); return; }
     customerApi.get(identity, id)
       .then((app) => {
         setOriginal(app);
         if (app.commodity) {
-          setCommodity({
-            name: app.commodity.name,
-            description: app.commodity.description,
-            category: app.commodity.category,
-          });
+          setCommodity({ name: app.commodity.name, description: app.commodity.description, category: app.commodity.category });
         }
         if (app.documents.length > 0) {
-          setDoc({
-            name: app.documents[0].name,
-            url: app.documents[0].url,
-            content_type: app.documents[0].content_type,
-          });
+          const d = app.documents[0];
+          setDoc({ key: d.url, name: d.name, content_type: d.content_type });
         }
         if (app.payment) {
-          setPayment({
-            amount: String(app.payment.amount),
-            currency: app.payment.currency,
-            transaction_id: app.payment.transaction_id,
-          });
+          setPayment({ amount: String(app.payment.amount), currency: app.payment.currency, transaction_id: app.payment.transaction_id });
         }
       })
       .catch((e) => setLoadError(e instanceof ApiResponseError ? e.body : e.message));
   }, [identity, id, router]);
-
-  function isValidUrl(url: string): boolean {
-    try {
-      const u = new URL(url);
-      return u.protocol === "http:" || u.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!identity || !original) return;
 
     if (!commodity.name.trim()) { setError("Commodity name is required."); return; }
-    if (!doc.name.trim()) { setError("Document name is required."); return; }
-    if (!isValidUrl(doc.url)) { setError("Document URL must be a valid http/https URL."); return; }
+    if (!doc) { setError("Please upload a document."); return; }
 
-    // Validate payment only if the user chose to update it.
     if (updatePayment) {
       const amt = parseFloat(payment.amount);
       if (isNaN(amt) || amt <= 0) { setError("Payment amount must be a positive number."); return; }
@@ -100,8 +71,6 @@ export default function EditApplicationPage() {
     setError("");
     setSubmitting(true);
 
-    // Payment is sent only if the user explicitly opted to update it.
-    // The backend command handler treats a missing payment field as "keep existing".
     const paymentPayload = updatePayment ? {
       amount: parseFloat(payment.amount),
       currency: payment.currency,
@@ -109,12 +78,8 @@ export default function EditApplicationPage() {
     } : undefined;
 
     const payload = {
-      commodity: {
-        name: commodity.name.trim(),
-        description: commodity.description.trim(),
-        category: commodity.category.trim(),
-      },
-      documents: [{ name: doc.name.trim(), url: doc.url.trim(), content_type: doc.content_type }],
+      commodity: { name: commodity.name.trim(), description: commodity.description.trim(), category: commodity.category.trim() },
+      documents: [{ name: doc.name, url: doc.key, content_type: doc.content_type }],
       payment: paymentPayload,
     };
 
@@ -133,11 +98,7 @@ export default function EditApplicationPage() {
   }
 
   if (loadError) {
-    return (
-      <div className="max-w-xl mx-auto py-8 px-4">
-        <p className="text-red-600">{loadError}</p>
-      </div>
-    );
+    return <div className="max-w-xl mx-auto py-8 px-4"><p className="text-red-600">{loadError}</p></div>;
   }
 
   if (!original) {
@@ -166,7 +127,6 @@ export default function EditApplicationPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Step 1: Commodity */}
         <Card>
           <CardHeader><CardTitle className="text-base">Step 1 — Commodity</CardTitle></CardHeader>
           <CardContent className="space-y-3">
@@ -185,26 +145,19 @@ export default function EditApplicationPage() {
           </CardContent>
         </Card>
 
-        {/* Step 2: Document */}
         <Card>
           <CardHeader><CardTitle className="text-base">Step 2 — Document</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label>Name *</Label>
-              <Input value={doc.name} onChange={(e) => setDoc({ ...doc, name: e.target.value })} placeholder="e.g. Passport Copy" />
-            </div>
-            <div>
-              <Label>URL * (https://…)</Label>
-              <Input value={doc.url} onChange={(e) => setDoc({ ...doc, url: e.target.value })} placeholder="https://storage.example.com/file.pdf" />
-            </div>
-            <div>
-              <Label>Content Type</Label>
-              <Input value={doc.content_type} onChange={(e) => setDoc({ ...doc, content_type: e.target.value })} placeholder="application/pdf" />
-            </div>
+          <CardContent>
+            {identity && (
+              <DocumentUpload
+                identity={identity}
+                value={doc}
+                onChange={setDoc}
+              />
+            )}
           </CardContent>
         </Card>
 
-        {/* Step 3: Payment */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

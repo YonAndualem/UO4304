@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DocumentUpload, type UploadedDoc } from "@/components/DocumentUpload";
 import { useIdentity } from "@/contexts/IdentityContext";
 import { customerApi, ApiResponseError } from "@/lib/api";
 
@@ -14,7 +15,7 @@ export default function NewApplicationPage() {
   const router = useRouter();
 
   const [commodity, setCommodity] = useState({ name: "", description: "", category: "" });
-  const [doc, setDoc] = useState({ name: "", url: "", content_type: "application/pdf" });
+  const [doc, setDoc] = useState<UploadedDoc | null>(null);
   const [payment, setPayment] = useState({ amount: "", currency: "USD", transaction_id: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -23,23 +24,12 @@ export default function NewApplicationPage() {
     setPayment(p => ({ ...p, transaction_id: "TXN-" + crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase() }));
   }, []);
 
-  // Validate doc URL: must be http/https to prevent javascript: injection
-  function isValidUrl(url: string): boolean {
-    try {
-      const u = new URL(url);
-      return u.protocol === "http:" || u.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!identity) { router.replace("/"); return; }
 
     if (!commodity.name.trim()) { setError("Commodity name is required."); return; }
-    if (!doc.name.trim()) { setError("Document name is required."); return; }
-    if (!isValidUrl(doc.url)) { setError("Document URL must be a valid http/https URL."); return; }
+    if (!doc) { setError("Please upload a document."); return; }
     const amount = parseFloat(payment.amount);
     if (isNaN(amount) || amount <= 0) { setError("Payment amount must be a positive number."); return; }
     if (!payment.transaction_id.trim()) { setError("Transaction ID is required."); return; }
@@ -54,10 +44,9 @@ export default function NewApplicationPage() {
           description: commodity.description.trim(),
           category: commodity.category.trim(),
         },
-        documents: [{ name: doc.name.trim(), url: doc.url.trim(), content_type: doc.content_type }],
+        documents: [{ name: doc.name, url: doc.key, content_type: doc.content_type }],
         payment: { amount, currency: payment.currency, transaction_id: payment.transaction_id.trim() },
       });
-      // Validate returned ID is a UUID before embedding in URL
       if (!/^[0-9a-f-]{36}$/i.test(created.id)) throw new Error("Invalid application ID returned.");
       router.push(`/customer/applications/${created.id}`);
     } catch (e) {
@@ -92,19 +81,14 @@ export default function NewApplicationPage() {
 
         <Card>
           <CardHeader><CardTitle className="text-base">Document</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label>Name *</Label>
-              <Input value={doc.name} onChange={(e) => setDoc({ ...doc, name: e.target.value })} placeholder="e.g. Passport Copy" />
-            </div>
-            <div>
-              <Label>URL * (https://…)</Label>
-              <Input value={doc.url} onChange={(e) => setDoc({ ...doc, url: e.target.value })} placeholder="https://storage.example.com/file.pdf" />
-            </div>
-            <div>
-              <Label>Content Type</Label>
-              <Input value={doc.content_type} onChange={(e) => setDoc({ ...doc, content_type: e.target.value })} placeholder="application/pdf" />
-            </div>
+          <CardContent>
+            {identity && (
+              <DocumentUpload
+                identity={identity}
+                value={doc}
+                onChange={setDoc}
+              />
+            )}
           </CardContent>
         </Card>
 

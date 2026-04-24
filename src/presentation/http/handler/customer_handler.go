@@ -81,7 +81,7 @@ func (h *CustomerHandler) SubmitApplication(c *fiber.Ctx) error {
 	}
 	for _, d := range req.Documents {
 		if d.Name == "" || d.URL == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "each document must have a name and url"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "each document must have a name and storage key"})
 		}
 	}
 	if req.Payment.Amount <= 0 {

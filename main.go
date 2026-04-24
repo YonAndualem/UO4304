@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/joho/godotenv"
@@ -25,6 +26,7 @@ import (
 	"github.com/enterprise/trade-license/src/application/query"
 	"github.com/enterprise/trade-license/src/config"
 	postgresrepo "github.com/enterprise/trade-license/src/infrastructure/persistence/postgres"
+	miniostorage "github.com/enterprise/trade-license/src/infrastructure/storage/minio"
 	httpserver "github.com/enterprise/trade-license/src/presentation/http"
 	"github.com/enterprise/trade-license/src/presentation/http/handler"
 )
@@ -44,6 +46,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
+
+	// ── Object storage (MinIO) ───────────────────────────────────────────────
+	store, err := miniostorage.New(cfg.MinIOEndpoint, cfg.MinIOAccessKey, cfg.MinIOSecretKey, cfg.MinIOBucket, cfg.MinIOUseSSL)
+	if err != nil {
+		log.Fatalf("failed to connect to MinIO: %v", err)
+	}
+	if err := store.EnsureBucket(context.Background()); err != nil {
+		log.Fatalf("failed to ensure MinIO bucket: %v", err)
+	}
+	uploadHandler := handler.NewUploadHandler(store)
 
 	// ── Auth ──────────────────────────────────────────────────────────────────
 	userRepo    := postgresrepo.NewUserRepository(db)
@@ -81,7 +93,7 @@ func main() {
 	approverHandler := handler.NewApproverHandler(approveHandler, getHandler, listByStatus)
 
 	// Build the Fiber router with all routes registered.
-	app := httpserver.NewRouter(authHandler, customerHandler, reviewerHandler, approverHandler, authSvc)
+	app := httpserver.NewRouter(authHandler, customerHandler, reviewerHandler, approverHandler, uploadHandler, authSvc)
 
 	log.Printf("server starting on :%s", cfg.ServerPort)
 	log.Fatal(app.Listen(":" + cfg.ServerPort))

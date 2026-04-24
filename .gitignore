@@ -23,6 +23,7 @@ frontend/tsconfig.tsbuildinfo
 # ── Docker ────────────────────────────────────────────────────────────────────
 # Keep Dockerfiles and compose; ignore runtime volumes if any
 postgres-data/
+*.log
 
 # ── OS / Editor ───────────────────────────────────────────────────────────────
 .DS_Store
@@ -31,6 +32,10 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# ── Test / Coverage ───────────────────────────────────────────────────────────
+coverage/
+*.coverage
 
 # ── Claude Code ───────────────────────────────────────────────────────────────
 .claude/

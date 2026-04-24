@@ -23,6 +23,7 @@ func NewRouter(
 	customer *handler.CustomerHandler,
 	reviewer *handler.ReviewerHandler,
 	approver *handler.ApproverHandler,
+	upload *handler.UploadHandler,
 	authSvc *auth.Service,
 ) *fiber.App {
 	app := fiber.New(fiber.Config{
@@ -45,8 +46,13 @@ func NewRouter(
 	a.Post("/register", authHandler.Register)
 	a.Post("/login", authHandler.Login)
 
+	// ── Document upload + preview (any authenticated user) ───────────────────
+	docs := api.Group("/documents", middleware.JWTAuth(authSvc))
+	docs.Get("/view", upload.StreamDocument)
+
 	// ── Customer routes (JWT required, CUSTOMER role) ─────────────────────────
 	cust := api.Group("/customer", middleware.JWTAuth(authSvc), middleware.RequireRole("CUSTOMER"))
+	cust.Post("/upload", upload.UploadDocument)
 	cust.Post("/applications", customer.SubmitApplication)
 	cust.Get("/applications", customer.ListMyApplications)
 	cust.Get("/applications/:id", customer.GetApplication)

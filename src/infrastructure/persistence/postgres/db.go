@@ -1,7 +1,7 @@
 // Package postgres is the infrastructure implementation of the domain repository interface.
 //
 // This package is the only place in the codebase that knows about PostgreSQL and GORM.
-// The domain and application layers reference only the tradelivense.ApplicationRepository
+// The domain and application layers reference only the repositories.ApplicationRepository
 // interface — they have no import path into this package. This is Clean Architecture's
 // Dependency Rule: source code dependencies point inward (toward domain), never outward.
 package postgres

@@ -9,7 +9,9 @@ package command
 import (
 	"context"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/models"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // SubmitApplicationCommand carries the data a customer provides when completing
@@ -48,10 +50,10 @@ type PaymentInput struct {
 // and delegates persistence to the repository — keeping orchestration logic here
 // and business logic in the aggregate.
 type SubmitApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewSubmitApplicationHandler(repo tradelivense.ApplicationRepository) *SubmitApplicationHandler {
+func NewSubmitApplicationHandler(repo repositories.ApplicationRepository) *SubmitApplicationHandler {
 	return &SubmitApplicationHandler{repo: repo}
 }
 
@@ -64,21 +66,21 @@ func NewSubmitApplicationHandler(repo tradelivense.ApplicationRepository) *Submi
 //
 // Returns the new application's ID on success.
 func (h *SubmitApplicationHandler) Handle(ctx context.Context, cmd SubmitApplicationCommand) (string, error) {
-	licenseType, err := tradelivense.NewLicenseType(cmd.LicenseType)
+	licenseType, err := valueobjects.NewLicenseType(cmd.LicenseType)
 	if err != nil {
 		return "", err
 	}
 
-	app := tradelivense.NewTradeLicenseApplication(cmd.ApplicantID, licenseType)
+	app := models.NewTradeLicenseApplication(cmd.ApplicantID, licenseType)
 
-	commodity := tradelivense.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
+	commodity := models.NewCommodity(cmd.Commodity.Name, cmd.Commodity.Description, cmd.Commodity.Category)
 	app.SelectCommodity(commodity)
 
 	for _, d := range cmd.Documents {
-		app.AttachDocument(tradelivense.NewDocument(d.Name, d.URL, d.ContentType))
+		app.AttachDocument(models.NewDocument(d.Name, d.URL, d.ContentType))
 	}
 
-	payment := tradelivense.NewPayment(cmd.Payment.Amount, cmd.Payment.Currency, cmd.Payment.TransactionID)
+	payment := models.NewPayment(cmd.Payment.Amount, cmd.Payment.Currency, cmd.Payment.TransactionID)
 	app.SettlePayment(payment)
 
 	// Submit enforces: documents present, payment settled, status is PENDING

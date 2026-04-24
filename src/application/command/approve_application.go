@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/repositories"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 )
 
 // ApproveAction enumerates the decisions available to an Approver in Step 4.
@@ -29,10 +30,10 @@ type ApproveApplicationCommand struct {
 // Mirrors ReviewApplicationHandler in structure — the action routing lives here
 // while the transition guards and domain events live in the aggregate.
 type ApproveApplicationHandler struct {
-	repo tradelivense.ApplicationRepository
+	repo repositories.ApplicationRepository
 }
 
-func NewApproveApplicationHandler(repo tradelivense.ApplicationRepository) *ApproveApplicationHandler {
+func NewApproveApplicationHandler(repo repositories.ApplicationRepository) *ApproveApplicationHandler {
 	return &ApproveApplicationHandler{repo: repo}
 }
 
@@ -40,7 +41,7 @@ func NewApproveApplicationHandler(repo tradelivense.ApplicationRepository) *Appr
 // based on the approver's action. Each method requires the application to be
 // in ACCEPTED status; REREVIEW sends it back to the reviewer queue.
 func (h *ApproveApplicationHandler) Handle(ctx context.Context, cmd ApproveApplicationCommand) error {
-	appID, err := tradelivense.ApplicationIDFrom(cmd.ApplicationID)
+	appID, err := valueobjects.ApplicationIDFrom(cmd.ApplicationID)
 	if err != nil {
 		return err
 	}

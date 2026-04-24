@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8080";
+const MINIO_PUBLIC = process.env.MINIO_PUBLIC_ORIGIN ?? "http://localhost:9000";
+const isDev = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -25,14 +27,17 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             // script-src 'self' 'unsafe-inline' required for Next.js inline scripts in App Router
+            // 'unsafe-eval' is required in dev mode by React 19 for callstack reconstruction
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
-              "connect-src 'self'",
+              `img-src 'self' data: https: ${MINIO_PUBLIC}`,
+              `connect-src 'self' blob: ${MINIO_PUBLIC}`,
               "font-src 'self'",
+              `frame-src 'self' ${MINIO_PUBLIC}`,
               "frame-ancestors 'none'",
+              "worker-src 'self' blob:",
             ].join("; "),
           },
         ],

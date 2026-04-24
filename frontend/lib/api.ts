@@ -63,6 +63,30 @@ export const authApi = {
   },
 };
 
+// ── File upload / preview ────────────────────────────────────────────────────
+
+export interface UploadedFile {
+  key: string;
+  name: string;
+  content_type: string;
+}
+
+export const storageApi = {
+  async upload(identity: Identity, file: File): Promise<UploadedFile> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/customer/upload", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${identity.token}` },
+      body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new ApiResponseError(res.status, text);
+    return JSON.parse(text) as UploadedFile;
+  },
+
+};
+
 // ── Customer ──────────────────────────────────────────────────────────────────
 
 export interface SubmitPayload {

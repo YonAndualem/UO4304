@@ -5,7 +5,7 @@ import (
 
 	"github.com/enterprise/trade-license/src/application/command"
 	"github.com/enterprise/trade-license/src/application/query"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/presentation/http/middleware"
 )
 
@@ -35,7 +35,7 @@ func NewApproverHandler(
 // awaiting the approver's final decision. Defaults to status=ACCEPTED.
 // The oldest applications are listed first to prevent starvation.
 func (h *ApproverHandler) ListPendingApproval(c *fiber.Ctx) error {
-	status := c.Query("status", string(tradelivense.StatusAccepted))
+	status := c.Query("status", string(valueobjects.StatusAccepted))
 
 	dtos, err := h.listHandler.Handle(c.Context(), status)
 	if err != nil {

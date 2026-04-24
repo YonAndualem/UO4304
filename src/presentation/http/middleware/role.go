@@ -13,13 +13,20 @@ import (
 // the parsed user ID and role in fiber locals for downstream handlers to read.
 func JWTAuth(svc *auth.Service) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		header := c.Get("Authorization")
-		if !strings.HasPrefix(header, "Bearer ") {
+		token := ""
+		if header := c.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
+			token = strings.TrimPrefix(header, "Bearer ")
+		} else {
+			// Fall back to ?token= query param so browsers can load documents
+			// directly in <embed>/<iframe> without custom headers.
+			token = c.Query("token")
+		}
+		if token == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "missing or invalid Authorization header",
 			})
 		}
-		claims, err := svc.ValidateToken(strings.TrimPrefix(header, "Bearer "))
+		claims, err := svc.ValidateToken(token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "invalid or expired token",

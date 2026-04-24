@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
+import dynamic from 'next/dynamic'
 import { getFileContent } from '@/actions/file'
 
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+const PdfPreview = dynamic(
+  () => import('@/components/PdfPreview').then((m) => m.PdfPreview),
+  { ssr: false }
+)
 
 interface DocumentPreviewModalProps {
   fileKey: string
@@ -110,21 +111,13 @@ export function DocumentPreviewModal({ fileKey, token, name, contentType, onClos
           )}
           {!loading && !error && pdfFile && (
             <div className="flex flex-col items-center p-4 gap-3">
-              <Document
+              <PdfPreview
                 file={pdfFile}
-                onLoadSuccess={({ numPages }) => { setNumPages(numPages); setPageNumber(1) }}
-                onLoadError={(err) => setError(err.message)}
-                loading={<div className="text-sm text-gray-500 py-8">Loading PDF…</div>}
-              >
-                {numPages > 0 && (
-                  <Page
-                    pageNumber={pageNumber}
-                    renderTextLayer
-                    renderAnnotationLayer
-                    className="shadow-md"
-                  />
-                )}
-              </Document>
+                pageNumber={pageNumber}
+                numPages={numPages}
+                onLoadSuccess={(pages) => { setNumPages(pages); setPageNumber(1) }}
+                onLoadError={(message) => setError(message)}
+              />
               {numPages > 1 && (
                 <div className="flex items-center gap-3 text-sm text-gray-600 shrink-0">
                   <button

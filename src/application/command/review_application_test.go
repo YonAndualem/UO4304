@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/enterprise/trade-license/src/application/command"
-	"github.com/enterprise/trade-license/src/domain/tradelivense"
+	domainerrors "github.com/enterprise/trade-license/src/domain/errors"
+	"github.com/enterprise/trade-license/src/domain/valueobjects"
 	"github.com/enterprise/trade-license/src/testutil"
 )
 
@@ -40,9 +41,9 @@ func TestReviewApplicationHandler_Accept(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusAccepted {
+	if app.Status != valueobjects.StatusAccepted {
 		t.Errorf("expected ACCEPTED, got %s", app.Status)
 	}
 }
@@ -62,9 +63,9 @@ func TestReviewApplicationHandler_Reject(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusRejected {
+	if app.Status != valueobjects.StatusRejected {
 		t.Errorf("expected REJECTED, got %s", app.Status)
 	}
 	if app.Notes != "incomplete documentation" {
@@ -87,9 +88,9 @@ func TestReviewApplicationHandler_Adjust(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	appID, _ := tradelivense.ApplicationIDFrom(id)
+	appID, _ := valueobjects.ApplicationIDFrom(id)
 	app, _ := repo.FindByID(context.Background(), appID)
-	if app.Status != tradelivense.StatusAdjusted {
+	if app.Status != valueobjects.StatusAdjusted {
 		t.Errorf("expected ADJUSTED, got %s", app.Status)
 	}
 }
@@ -118,7 +119,7 @@ func TestReviewApplicationHandler_NotFound(t *testing.T) {
 		ReviewerID:    "reviewer-1",
 		Action:        command.ReviewActionAccept,
 	})
-	if err != tradelivense.ErrApplicationNotFound {
+	if err != domainerrors.ErrApplicationNotFound {
 		t.Errorf("expected ErrApplicationNotFound, got %v", err)
 	}
 }
