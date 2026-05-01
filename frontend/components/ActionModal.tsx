@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,13 +25,23 @@ interface Props {
   onSubmit: (action: string, notes: string) => Promise<void>;
   actions: ActionOption[];
   title: string;
+  preSelected?: string;
 }
 
-export function ActionModal({ open, onClose, onSubmit, actions, title }: Props) {
-  const [selected, setSelected] = useState<ActionOption | null>(null);
+export function ActionModal({ open, onClose, onSubmit, actions, title, preSelected }: Props) {
+  const preOption = preSelected ? (actions.find((a) => a.value === preSelected) ?? null) : null;
+  const [selected, setSelected] = useState<ActionOption | null>(preOption);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Sync preSelected when it changes (e.g. different row button clicked)
+  useEffect(() => {
+    setSelected(preOption);
+    setNotes("");
+    setError("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preSelected, open]);
 
   const requiresNotes = selected?.requiresNotes ?? false;
 
@@ -68,20 +78,22 @@ export function ActionModal({ open, onClose, onSubmit, actions, title }: Props) 
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="flex flex-wrap gap-2">
-            {actions.map((a) => (
-              <Button
-                key={a.value}
-                variant={selected?.value === a.value ? "default" : "outline"}
-                onClick={() => { setSelected(a); setError(""); }}
-                className="flex-1"
-              >
-                {a.label}
-              </Button>
-            ))}
-          </div>
+          {!preOption && (
+            <div className="flex flex-wrap gap-2">
+              {actions.map((a) => (
+                <Button
+                  key={a.value}
+                  variant={selected?.value === a.value ? "default" : "outline"}
+                  onClick={() => { setSelected(a); setError(""); }}
+                  className="flex-1"
+                >
+                  {a.label}
+                </Button>
+              ))}
+            </div>
+          )}
 
-          {selected && (
+          {(selected || preOption) && (
             <div className="space-y-1.5">
               <Label htmlFor="action-notes">
                 Notes {requiresNotes && <span className="text-red-500">*</span>}
